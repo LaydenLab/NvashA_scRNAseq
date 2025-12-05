@@ -1,0 +1,1242 @@
+---
+title: "ashA figures for pub"
+output: html_document
+date: "2024-10-07"
+---
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(janitor)
+library(sctransform)
+library(DoubletFinder)
+library(glmGamPoi)
+library(BiocManager)
+library(multtest)
+library(metap)
+library(scCustomize)
+library(qs)
+library(igraph)
+library(tidyr)
+library(magrittr)
+```
+
+
+# Supplemental Figure 1
+#gastrula stage
+```{r}
+Stella_combined_filt_gastrula <- FindNeighbors(Stella_combined_filt20dim, dims = 1:20)
+Stella_combined_filt_gastrula <- FindClusters(Stella_combined_filt_gastrula, resolution = 1)
+Stella_combined_filt_gastrula <- RunUMAP(Stella_combined_filt_gastrula, dims = 1:20, verbose = FALSE)
+
+DimPlot(Stella_combined_filt_gastrula, reduction = "umap", label = FALSE, pt.size = 0.005, label.size = 5)
+```
+
+```{r}
+library(magrittr)
+Stella_combined_filt_gastrula@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(13, 14, 27) ~ "Gland",
+                                     seurat_clusters %in% c(25, 16, 20, 29, 30, 23, 10, 19) ~ "Cnidocyte",
+                                     seurat_clusters %in% c(11) ~ "Neural Progenitor Cell",
+                                     seurat_clusters %in% c(17, 18, 28) ~ "Neuron",
+                                     seurat_clusters %in% c(5) ~ "Pharyngeal Ectoderm",
+                                     seurat_clusters %in% c(3, 7, 26) ~ "Mesendoderm",
+                                     seurat_clusters %in% c(1, 2, 24, 6, 9, 22, 8, 21, 15, 0, 4, 12) ~ "Trunk/Aboral Ectoderm")) 
+Stella_combined_filt_gastrula@meta.data$CombinedCluster <- factor(Stella_combined_filt_gastrula@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_combined_filt_gastrula <- SetIdent(Stella_combined_filt_gastrula, value = Stella_combined_filt_gastrula@meta.data$CombinedCluster)
+```
+ 
+#Need to set the active ident. CombinedCluster is the combined and named clusters from above.  seurat_clusters is the original cluster numbers
+```{r}
+p5<-DimPlot(Stella_combined_filt_gastrula, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 6)
+p5
+
+Stella_combined_filt_gastrula@meta.data$CombinedCluster <- factor(Stella_combined_filt_gastrula@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_combined_filt_gastrula <- SetIdent(Stella_combined_filt_gastrula, value = Stella_combined_filt_gastrula@meta.data$CombinedCluster)
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+library(patchwork)
+
+     plt <- DotPlot(Stella_combined_filt_gastrula, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"),  italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes gastrula annotation')
+     plt
+```
+
+```{r, fig.width = 5, fig.height = 4}
+# identify your favorite gene in the UMAP plot
+goi <- "NV2g009665000.1" 
+
+p5 <- FeaturePlot_scCustom(seurat_object = Stella_combined_filt_gastrula, features = goi, pt.size = 0.0005)
+p5 <- p5 + ggtitle("NvashA in gastrula")
+p5
+```
+
+
+#early planula
+```{r}
+Stella_early_pl
+dim(Stella_early_pl)
+ncol(Stella_early_pl)
+```
+
+```{r}
+Stella_early_pl <- FindNeighbors(Stella_early_pl_raw, dims = 1:20)
+Stella_early_pl <- FindClusters(Stella_early_pl, resolution = 1)
+Stella_early_pl <- RunUMAP(Stella_early_pl, dims = 1:20, verbose = FALSE)
+
+DimPlot(Stella_early_pl, reduction = "umap")
+```
+
+```{r}
+library(magrittr)
+Stella_early_pl@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(7, 16) ~ "Gland",
+                                     seurat_clusters %in% c(18, 19, 20, 11) ~ "Cnidocyte",
+                                     seurat_clusters %in% c(14, 12) ~ "Neural Progenitor Cell",
+                                     seurat_clusters %in% c(15, 22) ~ "Neuron",
+                                     seurat_clusters %in% c(8, 24, 21) ~ "Pharyngeal Ectoderm",
+                                     seurat_clusters %in% c(6) ~ "Mesendoderm",
+                                     seurat_clusters %in% c(0, 1, 2, 3, 4, 5, 9, 10, 13, 17, 23) ~ "Trunk/Aboral Ectoderm")) 
+Stella_early_pl@meta.data$CombinedCluster <- factor(Stella_early_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_early_pl <- SetIdent(Stella_early_pl, value = Stella_early_pl@meta.data$CombinedCluster)
+```
+
+```{r}
+p5<-DimPlot(Stella_early_pl, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 6)
+p5
+
+Stella_early_pl@meta.data$CombinedCluster <- factor(Stella_early_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_early_pl <- SetIdent(Stella_early_pl, value = Stella_early_pl@meta.data$CombinedCluster)
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_early_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"),  italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes early planula annotation')
+     plt
+```
+
+```{r}
+goi <- "NV2g009665000.1" # 
+p5 <- FeaturePlot_scCustom(seurat_object = Stella_early_pl, features = goi, pt.size = 0.0005)
+p5 <- p5 + ggtitle("NvashA in early planula")
+p5
+```
+
+
+#mid planula
+```{r}
+Stella_mid_pl@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(10) ~ "Gland",
+                                     seurat_clusters %in% c(17, 15, 9) ~ "Cnidocyte",
+                                     seurat_clusters %in% c(6, 16) ~ "Neural Progenitor Cell",
+                                     seurat_clusters %in% c(12, 20) ~ "Neuron",
+                                     seurat_clusters %in% c(5, 19, 18) ~ "Pharyngeal Ectoderm",
+                                     seurat_clusters %in% c(13) ~ "Mesendoderm",
+                                     seurat_clusters %in% c(0, 1, 2, 3, 4, 7, 8, 11, 14) ~ "Trunk/Aboral Ectoderm")) 
+Stella_mid_pl@meta.data$CombinedCluster <- factor(Stella_mid_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_mid_pl <- SetIdent(Stella_mid_pl, value = Stella_mid_pl@meta.data$CombinedCluster)
+
+```
+
+```{r}
+p5<-DimPlot(Stella_mid_pl, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 6)
+p5
+
+Stella_mid_pl@meta.data$CombinedCluster <- factor(Stella_mid_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_mid_pl <- SetIdent(Stella_mid_pl, value = Stella_mid_pl@meta.data$CombinedCluster)
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_mid_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"),  italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes mid planula annotation')
+     plt
+```
+
+```{r}
+goi <- "NV2g009665000.1"
+p5 <- FeaturePlot_scCustom(seurat_object = Stella_mid_pl, features = goi, pt.size = 0.0005)
+p5 <- p5 + ggtitle("NvashA in mid planula")
+p5
+```
+
+#late planula 
+#grouping clusters and cluster identification
+```{r}
+library(magrittr)
+Stella_late_pl@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(10, 31) ~ "Gland",
+                                     seurat_clusters %in% c(14, 21, 20, 22, 30, 18) ~ "Cnidocyte",
+                                     seurat_clusters %in% c(13, 19) ~ "Neural Progenitor Cell",
+                                     seurat_clusters %in% c(3, 32, 28, 27, 23) ~ "Neuron",
+                                     seurat_clusters %in% c(8, 12, 25, 17, 15) ~ "Pharyngeal Ectoderm",
+                                     seurat_clusters %in% c(7) ~ "Mesendoderm",
+                                     seurat_clusters %in% c(0, 1, 2, 4, 5, 6, 9, 11, 16, 24, 26, 29) ~ "Trunk/Aboral Ectoderm")) 
+Stella_late_pl@meta.data$CombinedCluster <- factor(Stella_late_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_late_pl <- SetIdent(Stella_late_pl, value = Stella_late_pl@meta.data$CombinedCluster)
+
+```
+
+#late planula- annotation figure for pub
+```{r}
+p5<-DimPlot(Stella_late_pl, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 6)
+p5
+
+Stella_late_pl@meta.data$CombinedCluster <- factor(Stella_late_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_late_pl <- SetIdent(Stella_late_pl, value = Stella_late_pl@meta.data$CombinedCluster)
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_late_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes late planula annotation')
+     plt
+```
+
+```{r}
+goi <- "NV2g009665000.1" 
+p5 <- FeaturePlot_scCustom(seurat_object = Stella_late_pl, features = goi, pt.size = 0.0005)
+p5 <- p5 + ggtitle("NvashA in late planula")
+p5
+```
+
+
+# Figure 1
+# new ashA analysis on subsetted objects 
+```{r}
+DATA_DIR    <- "ashA_combined/data"
+RESULTS_DIR <- "ashA_combined/results"
+```
+
+
+# Subsetting NvashA + cells from each timepoint
+```{r}
+#gastrula
+
+R1 <- RidgePlot(object = Stella_combined_filt_gastrula, features = 'NV2g009665000.1')
+R1 <- R1 + ggtitle('NvashA expression levels across each cluster at gastrula')
+R1
+
+ashA_gastrula <- subset(Stella_combined_filt_gastrula, subset = `NV2g009665000.1` > 0.65)
+dim(ashA_gastrula); dim(Stella_combined_filt_gastrula) #  cells express NvashA 
+save(ashA_gastrula, file = file.path(DATA_DIR, "ashA_gastrula.Rda"))
+```
+
+```{r}
+#early planula
+
+R1 <- RidgePlot(object = Stella_early_pl, features = 'NV2g009665000.1')
+R1 <- R1 + ggtitle('NvashA expression levels across each cluster at early planula')
+R1
+
+ashA_early_pl <- subset(Stella_early_pl, subset = `NV2g009665000.1` > 0.65)
+dim(ashA_early_pl); dim(Stella_early_pl) #  cells express NvashA 
+save(ashA_early_pl, file = file.path(DATA_DIR, "ashA_early_pl.Rda"))
+```
+
+```{r}
+#mid planula
+
+R1 <- RidgePlot(object = Stella_mid_pl, features = 'NV2g009665000.1')
+R1 <- R1 + ggtitle('NvashA expression levels across each cluster at mid planula')
+R1
+
+ashA_mid_pl <- subset(Stella_mid_pl, subset = `NV2g009665000.1` > 0.65)
+dim(ashA_mid_pl); dim(Stella_mid_pl) #  cells express NvashA 
+save(ashA_mid_pl, file = file.path(DATA_DIR, "ashA_mid_pl.Rda"))
+```
+
+```{r}
+#late planula
+
+R1 <- RidgePlot(object = Stella_late_pl, features = 'NV2g009665000.1')
+R1 <- R1 + ggtitle('NvashA expression levels across each cluster at late planula')
+R1
+
+ashA_late_pl <- subset(Stella_late_pl, subset = `NV2g009665000.1` > 0.65)
+dim(ashA_late_pl); dim(Stella_late_pl) #  cells express NvashA 
+save(ashA_late_pl, file = file.path(DATA_DIR, "ashA_late_pl.Rda"))
+```
+
+# merge all files and make "timepoint" identity
+```{r}
+ashA_combinedv4 <-merge(x = ashA_gastrula, y = list(ashA_early_pl, ashA_mid_pl, ashA_late_pl), add.cell.ids = c("gastrula", "early planula", "mid planula", "late planula"))
+```
+
+```{r}
+ids <- rownames(ashA_combinedv4@meta.data)
+table(stringr::str_split_fixed(string = ids, pattern = "_", n = 3)[,1])
+timepoint <- stringr::str_split_fixed(string = ids, pattern = "_", n = 3)[,1]
+ashA_combinedv4@meta.data$timepoint <- timepoint
+
+Idents(ashA_combinedv4) <- "timepoint"
+Idents(ashA_combinedv4)
+```
+
+#analysis of merged NvashA subset data
+```{r}
+ashA_combinedv4_20dims <- FindNeighbors(ashA_combinedv4, dims = 1:20)
+ashA_combinedv4_20dims <- FindClusters(ashA_combinedv4_20dims, resolution = 1)
+head(Idents(ashA_combinedv4_20dims), 10)
+ashA_combinedv4_20dims <- RunUMAP(ashA_combinedv4_20dims, dims = 1:20, verbose = FALSE)
+
+p1.ashA <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "timepoint", label = FALSE, pt.size = 0.1, label.size = 5)
+p2.ashA <- DimPlot(ashA_combinedv4_20dims, reduction = "umap",group.by = "orig.ident" , pt.size = 0.1)
+p3.ashA <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", label = TRUE, pt.size = 0.1, label.size = 8)
+p4.ashA <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 8)
+
+p1.ashA
+p2.ashA
+p3.ashA
+p4.ashA
+```
+
+# figure for annotation of NvashA clusters - DotPlot
+```{r fig.width = 3, fig.height = 3}
+
+ashA_combinedv4_20dims <- SetIdent(ashA_combinedv4_20dims, value = ashA_combinedv4_20dims@meta.data$seurat_clusters)
+ashA_combinedv4_20dims@active.ident <- factor(ashA_combinedv4_20dims@active.ident,
+                                   levels = c("16", "4", "3", "10", "12", "1", "15", "20", "6", "9", "11", "13", "5",
+                                               "2", "0", "7",
+                                              "14", "18", "17", "22", "21", "19", "8"))
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g010927000.1", "NV2g018311000.1", "NV2g007706000.1", "NV2g001852000.1",  "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g000252000.1","NV2g002719000.1", "NV2g015023000.1")
+
+
+     plt <- DotPlot(ashA_combinedv4_20dims, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("Nvshk1"), italic("Nv2.18311"), italic("Nvnh2l1-like-1"), italic("Nvdmrt-E"), italic("NvsoxC"), italic("NvsoxB2"), italic("Nvath-like"), italic("Nvelav1"), italic("NvTBA1-like7"), italic("Nve429")))
+     plt <- plt + ggtitle('Marker genes across each cluster in NvashA subset')
+     plt
+```
+
+#Grouping clusters - NvashA subset
+#Need to set the active ident. CombinedCluster is the combined and named clusters from above.  seurat_clusters is the original cluster numbers
+```{r}
+library(magrittr)
+ashA_combinedv4_20dims@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(12, 10, 3, 4) ~ "cnidocyte",
+                                     seurat_clusters %in% c(16) ~ "gland",
+                                     seurat_clusters %in% c(1, 15, 20) ~ "cni.gast",
+                                     seurat_clusters %in% c(6, 9, 13, 11, 5) ~ "neuron.gast-pl",
+                                     seurat_clusters %in% c(2, 0, 7, 14, 17, 18, 19, 21, 22) ~ "neuron.pl",
+                                     #seurat_clusters %in% c(8) ~ "unknown"
+                                     )) 
+ashA_combinedv4_20dims@meta.data$CombinedCluster <- factor(ashA_combinedv4_20dims@meta.data$CombinedCluster, levels = c("gland", "cnidocyte", "cni.gast",  "neuron.gast-pl", "neuron.pl"))
+ashA_combinedv4_20dims <- SetIdent(ashA_combinedv4_20dims, value = ashA_combinedv4_20dims@meta.data$CombinedCluster)
+``` 
+ 
+```{r}
+p5.ashA_20<-DimPlot(ashA_combinedv4_20dims, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 6)
+p5.ashA_20
+```
+
+ 
+# Supplemental Figure 2
+# make UMAPs for all genes at once
+```{r}
+list_of_genes <- c("NV2g006608000.1", "NV2g004477000.1", "NV2g016402000.1", "NV2g000252000.1","NV2g002719000.1", "NV2g015023000.1")
+list_of_names <- c( "Nvath-like", "NvsoxB(2)", "NvsoxC", "Nvelav1", "Nvtba1-like7", "NVE490")
+
+if(length(list_of_names) == length(list_of_genes)){
+   for(i in 1:length(list_of_genes)){
+     plt <- FeaturePlot_scCustom(ashA_combinedv4_20dims, features = list_of_genes[i], pt.size = 0.005)
+     plt <- plt + ggtitle(list_of_names[i])
+     print(plt)
+     ggsave(plt, file = paste0("/ashA_combined/umaps/",  list_of_names[i], "-umap.jpg"), device = "jpg", width = 5, height = 4)
+   }
+  } else {
+    message("Error! - fix your names/ids!")
+  }
+```
+
+# Extract colors for timepoints
+```{r}
+
+p1.ashA <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "timepoint", label = FALSE, pt.size = 0.1, label.size = 5)
+
+# extract colors
+p <- ggplot_build(p1.ashA)
+colors <- unique(p$data[[1]]$colour)
+library(magrittr)
+ashA_combinedv4_20dims@meta.data %<>% 
+  mutate(colorG = ifelse(timepoint == "gastrula", colors[1], "grey50"),
+         colorEP = ifelse(timepoint == "early planula", colors[2], "grey50"),
+         colorMP = ifelse(timepoint == "mid planula", colors[3], "grey50"),
+         colorLP = ifelse(timepoint == "late planula", colors[4], "grey50"))
+
+p1.ashA_G <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "colorG", 
+                      label = FALSE, pt.size = 0.1, label.size = 5, cols = c(colors[1], "grey80")) 
+p1.ashA_G <- p1.ashA_G + NoLegend() + ggtitle("gastrula")
+p1.ashA_G
+ggsave(filename = "p1ashA_G.jpg", plot = p1.ashA_24, height = 4, width = 5)
+
+
+p1.ashA_EP <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "colorEP", 
+                      label = FALSE, pt.size = 0.1, label.size = 5, cols = c(colors[2], "grey80")) 
+p1.ashA_EP <- p1.ashA_EP + NoLegend() + ggtitle("early planula")
+p1.ashA_EP
+ggsave(filename = "p1ashA_EP.jpg", plot = p1.ashA_EP, height = 4, width = 5)
+
+
+p1.ashA_MP <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "colorMP", 
+                      label = FALSE, pt.size = 0.1, label.size = 5, cols = c(colors[3], "grey80")) 
+p1.ashA_MP <- p1.ashA_MP + NoLegend() + ggtitle("mid planula")
+p1.ashA_MP
+ggsave(filename = "p1ashA_MP.jpg", plot = p1.ashA_MP, height = 4, width = 5)
+
+
+p1.ashA_LP <- DimPlot(ashA_combinedv4_20dims, reduction = "umap", group.by = "colorLP", 
+                      label = FALSE, pt.size = 0.1, label.size = 5, cols = c(colors[4], "grey80")) 
+p1.ashA_LP <- p1.ashA_LP + NoLegend() + ggtitle("late planula")
+p1.ashA_LP
+ggsave(filename = "p1ashA_LP.jpg", plot = p1.ashA_LP, height = 4, width = 5)
+```
+
+
+# Supplemental Figure 3
+# Find DEGs
+```{r}
+markers_ashA_combinedv4_20dims <- FindAllMarkers(ashA_combinedv4_20dims)
+library(rio)
+library(dplyr)
+markers_ashA_combinedv4_20dims %>% 
+  tibble::rownames_to_column("gene_id") %>% 
+  rio::export(., file = "/markers_ashA_combinedv4_20dims.csv")
+```
+
+
+# Determine if the markers are unique markers. Genes = all neural from ashA FindAllMarkers top genes
+```{r fig.width = 8, fig.height = 3}
+
+ashA_combinedv4_20dims <- SetIdent(ashA_combinedv4_20dims, value = ashA_combinedv4_20dims@meta.data$seurat_clusters)
+ashA_combinedv4_20dims@active.ident <- factor(ashA_combinedv4_20dims@active.ident,
+                                   levels = c("16", "4", "3", "10", "12", "1", "15", "20", "6", "9", "11", "13", "5",
+                                               "2", "0", "7",
+                                              "14", "18", "17", "22", "19", "21", "8"))
+
+list_of_genes <- c("NV2g016299000.1", "NV2g014774000.1", "NV2g012706000.1", "NV2g005875000.1", "NV2g014348000.1", #6
+                   "NV2g021230000.1", "NV2g014384000.1", "NV2g003558000.1", "NV2g023233000.1", "NV2g018400000.1", #9
+                   "NV2g011343000.1", "NV2g024863000.1", "NV2g025171000.1", "NV2g015162000.1", "NV2g024857000.1", #11
+                   "NV2g011772000.1", "NV2g014153000.1", "NV2g025073000.1", "NV2g004915000.1", "NV2g021248000.1", #13
+                   "NV2g021302000.1", "NV2g021840000.1", "NV2g024129000.1", "NV2g023280000.1", "NV2g001446000.1", #5
+                   "NV2g014792000.1", "NV2g003097000.1", "NV2g016402000.1", "NV2g013863000.1", "NV2g004360000.1", #2
+                   "NV2g007811000.1", "NV2g023729000.1", "NV2g010520000.1", "NV2g005103000.1", "NV2g003747000.1", #0
+                   "NV2g024838000.1", "NV2g017174000.1", "NV2g008406000.1", "NV2g023195000.1", "NV2g016035000.1", #7
+                   "NV2g007753000.1", "NV2g001757000.1", "NV2g004704000.1", "NV2g004096000.1", "NV2g007867000.1", #14
+                   "NV2g015930000.1", "NV2g002620000.1", "NV2g002627000.1", "NV2g002623000.1", "NV2g020225000.1", #18
+                   "NV2g001999000.1", "NV2g011608000.1", "NV2g015217000.1", "NV2g015222000.1", "NV2g017107000.1", #17
+                   "NV2g021058000.1", "NV2g013128000.1", "NV2g016346000.1", "NV2g014663000.1", "NV2g009262000.1", #22
+                   "NV2g018588000.1", "NV2g003875000.1", "NV2g015362000.1", "NV2g015156000.1", "NV2g015982000.1", #19
+                   "NV2g001204000.1", "NV2g001205000.1", "NV2g007735000.1", "NV2g018362000.1", "NV2g020402000.1", #21
+                   "NV2g014532000.1", "NV2g002896000.1", "NV2g013603000.1", "NV2g004414000.1", "NV2g009834000.1" #8
+                   )
+
+     plt4 <- DotPlot(ashA_combinedv4_20dims, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+  
+     plt4 <- plt4 + scale_x_discrete(labels = expression(
+                      italic("Nvprga"), italic("Nv2.14774"), italic("Nv2.12706"), italic("Nv2.5875"), italic("Nvpapss-like-1"),  #6
+                      italic("Nvats6-like-7"), italic("Nv2.14384"), italic("Nv2.3558"), italic("Nv2.23233"), italic("Nvdd3-like-2"),  #9
+                      italic("Nvaa2BR-like-2"), italic("Nvmuc1-like-2"), italic("Nvegfl8-like-1"), italic("Nv2.15162"), italic("Nvvwa7-like-2"), #11
+                      italic("Nvblml2-like-1"), italic("Nv2.14153"), italic("Nvaa3R-like-7"), italic("Nvtaar6-like-2"), italic("Nv2.21248"),  #13
+                      italic("Nvprga-R.199"), italic("Nv2.21840"), italic("Nvshb-like-6"), italic("Nvgr101-like-10"), italic("Nv2.1446"), #5
+                      italic("Nvrl12-like-1"), italic("Nvrs3A-like-1"), italic("NvsoxC"), italic("Nv2.13863"), italic("Nvrl13-like-1"), #2
+                      italic("Nv2.7811"), italic("Nv2.23729"), italic("Nv2.10520"), italic("Nv2.5103"), italic("Nv2.3747"), #0
+                      italic("Nv2.24838"), italic("Nvaebp1-like-1"), italic("Nvats7-like-1"), italic("Nvlox5-like-3"), italic("Nvnas4-like-2"), #7
+                      italic("Nvviaat-like-40"), italic("Nvfez"), italic("NvCNTP1-like-14"), italic("NvSC6A1-like-9"), italic("Nvbtn1-like-6"), #14
+                      italic("Nv2.15930"), italic("Nv2.2620"), italic("Nv2.2627"), italic("Nv2.2623"), italic("Nv2.20225"), #18
+                      italic("Nvviaat-like-31"), italic("Nvbha15-like-1"), italic("Nv2.15217"), italic("Nv2.15222"), italic("Nvnr1BA-like-1"), #17
+                      italic("Nv2.21058"), italic("Nvaa2AR-like-3"), italic("Nvopn4-like-13"), italic("Nv2.14663"), italic("Nv2.9262"), #22
+                      italic("Nvach10-like-11"), italic("Nvqrfpr-like-31"), italic("Nvhce2-like-1"), italic("Nv.15156"), italic("Nv2.15982"), #19
+                      italic("Nv2.1204"), italic("Nv2.1205"), italic("Nvopn4B-like-6"), italic("Nvadrb2-like-40"), italic("Nvcckar-like-2"), #21
+                      italic("Nv2.14532"), italic("Nvtda6-like-1"), italic("Nvgp2-like-44"), italic("Nv2.4414"), italic("Nv2.9834") #8
+                                                ))
+     plt4 <- plt4 + ggtitle('top 5 DEGs from each cluster on NvashA subset')
+     plt4
+     ggsave(plt4, file = "/top_markers_ashA_DEGs.jpg", width = 20, height =8)
+```
+
+# top 5 NvashA markers (DEGs) on late planula dataset
+```{r}
+library(magrittr)
+Stella_late_pl@meta.data %<>% 
+  mutate(CombinedCluster = case_when(seurat_clusters %in% c(10, 31) ~ "Gland",
+                                     seurat_clusters %in% c(14, 21, 20, 22, 30, 18) ~ "Cnidocyte",
+                                     seurat_clusters %in% c(13, 19) ~ "Neural Progenitor Cell",
+                                     seurat_clusters %in% c(3, 32, 28, 27, 23) ~ "Neuron",
+                                     seurat_clusters %in% c(8, 12, 25, 17, 15) ~ "Pharyngeal Ectoderm",
+                                     seurat_clusters %in% c(7) ~ "Mesendoderm",
+                                     seurat_clusters %in% c(0, 1, 2, 4, 5, 6, 9, 11, 16, 24, 26, 29) ~ "Trunk/Aboral Ectoderm")) 
+Stella_late_pl@meta.data$CombinedCluster <- factor(Stella_late_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_late_pl <- SetIdent(Stella_late_pl, value = Stella_late_pl@meta.data$CombinedCluster)
+
+```
+
+ #Need to set the active ident. CombinedCluster is the combined and named clusters.  seurat_clusters is the original cluster numbers ***used in paper
+```{r, fig.width = 20, fig.height = 5}
+
+Stella_late_pl@meta.data$CombinedCluster <- factor(Stella_late_pl@meta.data$CombinedCluster, levels = c("Gland", "Cnidocyte", "Neural Progenitor Cell", "Neuron", "Pharyngeal Ectoderm", "Mesendoderm", "Trunk/Aboral Ectoderm"))
+Stella_late_pl <- SetIdent(Stella_late_pl, value = Stella_late_pl@meta.data$CombinedCluster)
+
+list_of_genes <- c("NV2g016299000.1", "NV2g014774000.1", "NV2g012706000.1", "NV2g005875000.1", "NV2g014348000.1", #6
+                   "NV2g021230000.1", "NV2g014384000.1", "NV2g003558000.1", "NV2g023233000.1", "NV2g018400000.1", #9
+                   "NV2g011343000.1", "NV2g024863000.1", "NV2g025171000.1", "NV2g015162000.1", "NV2g024857000.1", #11
+                   "NV2g011772000.1", "NV2g014153000.1", "NV2g025073000.1", "NV2g004915000.1", "NV2g021248000.1", #13
+                   "NV2g021302000.1", "NV2g021840000.1", "NV2g024129000.1", "NV2g023280000.1", "NV2g001446000.1", #5
+                   "NV2g014792000.1", "NV2g003097000.1", "NV2g016402000.1", "NV2g013863000.1", "NV2g004360000.1", #2
+                   "NV2g007811000.1", "NV2g023729000.1", "NV2g010520000.1", "NV2g005103000.1", "NV2g003747000.1", #0
+                   "NV2g024838000.1", "NV2g017174000.1", "NV2g008406000.1", "NV2g023195000.1", "NV2g016035000.1", #7
+                   "NV2g007753000.1", "NV2g001757000.1", "NV2g004704000.1", "NV2g004096000.1", "NV2g007867000.1", #14
+                   "NV2g015930000.1", "NV2g002620000.1", "NV2g002627000.1", "NV2g002623000.1", "NV2g020225000.1", #18
+                   "NV2g001999000.1", "NV2g011608000.1", "NV2g015217000.1", "NV2g015222000.1", "NV2g017107000.1", #17
+                   "NV2g021058000.1", "NV2g013128000.1", "NV2g016346000.1", "NV2g014663000.1", "NV2g009262000.1", #22
+                   "NV2g018588000.1", "NV2g003875000.1", "NV2g015362000.1", "NV2g015156000.1", "NV2g015982000.1", #19
+                   "NV2g001204000.1", "NV2g001205000.1", "NV2g007735000.1", "NV2g018362000.1", "NV2g020402000.1", #21
+                   "NV2g014532000.1", "NV2g002896000.1", "NV2g013603000.1", "NV2g004414000.1", "NV2g009834000.1" #8
+                   )
+
+
+     plt <- DotPlot(Stella_late_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(
+                 italic("Nvprga"), italic("Nv2.14774"), italic("Nv2.12706"), italic("Nv2.5875"), italic("Nvpapss-like-1"), #6
+                 italic("Nvats6-like-7"), italic("Nv2.14384"), italic("Nv2.3558"), italic("Nv2.23233"), italic("Nvdd3-like-2"),  #9
+                 italic("Nvaa2BR-like-2"), italic("Nvmuc1-like-2"), italic("Nvegfl8-like-1"), italic("Nv2.15162"), italic("Nvvwa7-like-2"), #11
+                 italic("Nvblml2-like-1"), italic("Nv2.14153"), italic("Nvaa3R-like-7"), italic("Nvtaar6-like-2"), italic("Nv2.21248"),  #13
+                 italic("Nvprga-R.199"), italic("Nv2.21840"), italic("Nvshb-like-6"), italic("Nvgr101-like-10"), italic("Nv2.1446"), #5
+                 italic("Nvrl12-like-1"), italic("Nvrs3A-like-1"), italic("NvsoxC"), italic("Nv2.13863"), italic("Nvrl13-like-1"), #2
+                 italic("Nv2.7811"), italic("Nv2.23729"), italic("Nv2.10520"), italic("Nv2.5103"), italic("Nv2.3747"), #0
+                 italic("Nv2.24838"), italic("Nvaebp1-like-1"), italic("Nvats7-like-1"), italic("Nvlox5-like-3"), italic("Nvnas4-like-2"), #7
+                 italic("Nvviaat-like-40"), italic("Nvfez"), italic("NvCNTP1-like-14"), italic("NvSC6A1-like-9"), italic("Nvbtn1-like-6"), #14
+                 italic("Nv2.15930"), italic("Nv2.2620"), italic("Nv2.2627"), italic("Nv2.2623"), italic("Nv2.20225"), #18
+                 italic("Nvviaat-like-31"), italic("Nvbha15-like-1"), italic("Nv2.15217"), italic("Nv2.15222"), italic("Nvnr1BA-like-1"), #17
+                 italic("Nv2.21058"), italic("Nvaa2AR-like-3"), italic("Nvopn4-like-13"), italic("Nv2.14663"), italic("Nv2.9262"), #22
+                 italic("Nvach10-like-11"), italic("Nvqrfpr-like-31"), italic("Nvhce2-like-1"), italic("Nv.15156"), italic("Nv2.15982"), #19
+                 italic("Nv2.1204"), italic("Nv2.1205"), italic("Nvopn4B-like-6"), italic("Nvadrb2-like-40"), italic("Nvcckar-like-2"), #21
+                 italic("Nv2.14532"), italic("Nvtda6-like-1"), italic("Nvgp2-like-44"), italic("Nv2.4414"), italic("Nv2.9834") #8
+                                                ))
+     plt <- plt + ggtitle('top 5 subset markers on late planula')
+     plt
+     ggsave(plt, file = "/top_markers_LP_dotplot.jpg", width = 20, height = 5)
+```
+
+
+# Supplemental Figure 4
+# Find DEGs from Cole et al. 2024's neuroglandular dataset
+```{r}
+markers_neurogland.all <- FindAllMarkers(neurogland.all)
+library(rio)
+library(dplyr)
+markers_neurogland.all %>% 
+  tibble::rownames_to_column("gene_id") %>% 
+  rio::export(., file = "/markers_neurogland.all.csv")
+```
+
+# top genes from Alison Cole's (Cole et al., 2024) neugoglandular datawset on NvashA subset 
+```{r fig.width = 9, fig.height = 3}
+
+ashA_combinedv4_20dims <- SetIdent(ashA_combinedv4_20dims, value = ashA_combinedv4_20dims@meta.data$seurat_clusters)
+ashA_combinedv4_20dims@active.ident <- factor(ashA_combinedv4_20dims@active.ident,
+                                   levels = c("16", "4", "3", "10", "12", "1", "15", "20", "6", "9", "11", "13", "5",
+                                               "2", "0", "7",
+                                              "14", "18", "17", "22", "19", "21", "8"))
+
+list_of_genes <- c("NV2g011600000.1", "NV2g016299000.1", "NV2g000651000.1", "NV2g016823000.1", "NV2g011343000.1", #N1.L2
+  "NV2g014153000.1", "NV2g025073000.1", "NV2g011772000.1", "NV2g004915000.1", "NV2g009042000.1", #N1.L1
+  "NV2g012348000.1", "NV2g021230000.1","NV2g003558000.1", "NV2g021840000.1", "NV2g024129000.1", #N1.L3
+  "NV2g015787000.1", "NV2g016037000.1","NV2g011524000.1", "NV2g007282000.1", "NV2g023984000.1", #N2.1
+  "NV2g020120000.1", "NV2g008437000.1","NV2g007753000.1", "NV2g010940000.1", "NV2g017198000.1", #N2.2
+  "NV2g018186000.1", "NV2g001757000.1", "NV2g023678000.1", "NV2g002044000.1","NV2g000371000.1", #N2.3
+  "NV2g016206000.1", "NV2g010682000.1","NV2g025643000.1", "NV2g006888000.1", "NV2g004704000.1", #N2.4
+  "NV2g002620000.1", "NV2g002627000.1", "NV2g002623000.1", "NV2g000952000.1", "NV2g005984000.1", #N1.g.early
+  "NV2g006171000.1", "NV2g015217000.1", "NV2g001449000.1", "NV2g014600000.1", "NV2g008266000.1", #N2.g1
+  "NV2g021058000.1", "NV2g016346000.1", "NV2g014663000.1", "NV2g011930000.1", "NV2g014773000.1", #NGD.1
+  "NV2g018872000.1", "NV2g001204000.1", "NV2g001205000.1", "NV2g001202000.1", "NV2g020328000.1", #N1.2
+  "NV2g019212000.1", "NV2g008558000.1", "NV2g008740000.1", "NV2g019209000.1", "NV2g006433000.1", 
+  "NV2g017383000.1", "NV2g002154000.1", "NV2g022717000.1", "NV2g024546000.1", "NV2g013148000.1"
+                   )
+                 
+
+plt9 <- DotPlot(ashA_combinedv4_20dims, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+plt9 <- plt9 + ggtitle("subtype markers on ashA subset")
+plt9 <- plt9 + scale_x_discrete(labels = expression(
+ italic("Nv2.11600"), italic("NvPRGa"), italic("NvMFD6B-like-1"), italic("NvAQP2-like-1"), italic("NvAA2BR-like-2"), 
+ italic("Nv2.14153"), italic("NvAA3R-like-7"), italic("NvBLML2-like-1"), italic("NvTAAR6-like-2"), italic("NvTLL-like2"), 
+ italic("NvPR1-like-1"), italic("NvATS6-like-7"), italic("Nv2.3558"), italic("Nv2.21840"), italic("NvSHB-like-6"), 
+ italic("Nv2.15787"), italic("Nv2.16037"), italic("NvTBA3-like-2"), italic("NvFibrinogen-like"), italic("NvEDIL3-like-40"), 
+ italic("NvTMPS6-like-2"), italic("NvQGRFa"), italic("NvVIAAT-like-40"), italic("NvGABR1-like-2"), italic("NvFBCD1-like-22"),
+ italic("NvGBRG3-like-1"), italic("Nvfez"), italic("NvFXD3A-like-1"), italic("Nv2.2044"), italic("NvGBRR1-like-5"), #N2.3
+ italic("NvECT-like-2"), italic("NvNLGNY-like-2"), italic("NvTBX5A-like-4"), italic("NvACHA3-like-9"), italic("NvCNTP1-like-14"), #N2.4
+ italic("Nv2.2620"), italic("Nv2.2627"), italic("Nv2.2623"), italic("NvCP17A-like-28"), italic("NvPGCA-like-20"), #N1.g.early
+ italic("NvTBA1-like-1"), italic("Nv2.15217"), italic("NvPRDM14d"), italic("NvCALM-like-34"), italic("Nv2.8266"), #N2.g1
+ italic("Nv2.21058"), italic("NvOPN4-like-13"), italic("Nv2.14663"), italic("NvKCNJ5-like-1"), italic("Nv2.14773"), #NGD.1
+ italic("NvEmx3"), italic("Nv2.1204"), italic("Nv2.1205"), italic("Nv2.1202"), italic("NvTM11D-like-4"), #N1.2
+ italic("NvFBP1-like-40"), italic("NvVITRN-like-3"), italic("NvCO7A1-like-1"), italic("NvFBP1-like-50"), italic("NvSAAR1-like-1"), 
+italic("NvCD63-like-12"), italic("Nv2.2154"), italic("Nv2.22717"), italic("NvDMBT1-like-28"), italic("NvSON-like-3")
+ ))
+                                                  
+plt9
+ggsave(plt9, file = "/subtpemarker_dotplot.jpg", width = 20, height =8)
+
+```
+
+#Nvasha markers on Cole's neuroglandular dataset
+```{r, fig.width = 8, fig.height = 8}
+
+genes <- c(
+ #   "PRGa", "NV2.14774", "NV2.12706", "NV2.5875", "PAPSS-like-1", #6
+#    "ATS6-like-7", "NV2.14384", "NV2.3558", "NV2.23233", "DD3-like-2",  #9
+     "AA2BR-like-2", "MUC1-like-2", "EGFL8-like-1", "NV2.15162", "VWA7-like-2", #11
+      "BLML2-like-1", "NV2.14153", "AA3R-like-7", "TAAR6-like-2", "NV2.21248",  #13
+      "PRGa-R.199", "NV2.21840", "SHB-like-6", "GR101-like-10", "NV2.1446", #5
+  #   "RL12-like-1", "RS3A-like-1", "SoxC", "NV2.13863", "RL13-like-1", #2
+  #   "NV2.7811", "NV2.23729", "NV2.10520", "NV2.5103", "NV2.3747", #0
+      "NV2.24838", "AEBP1-like-1", "ATS7-like-1", "LOX5-like-3", "NAS4-like-2", #7
+      "VIAAT-like-40", "fez", "CNTP1-like-14", "SC6A1-like-9", "BTN1-like-6", #14
+      "NV2.15930", "NV2.2620", "NV2.2627", "NV2.2623", "NV2.20225", #18
+      "VIAAT-like-31", "BHA15-like-1", "NV2.15217", "NV2.15222", "NR1BA-like-1", #17
+      "NV2.21058", "AA2AR-like-3", "OPN4-like-13", "NV2.14663", "NV2.9262", #22
+      "ACH10-like-11", "QRFPR-like-31", "HCE2-like-1", "NV2.15156", "NV2.15982", #19
+      "NV2.1204", "NV2.1205", "OPN4B-like-6", "ADRB2-like-40", "CCKAR-like-2", #21
+      "NV2.14532", "TDA6-like-1", "GP2-like-44", "NV2.4414", "NV2.9834") #8
+
+plt9 <- DotPlot(neurogland.all, features = genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+plt9 <- plt9 + ggtitle("NvashA cluster markers/DEGs on neuroglandular dataset")
+plt9 <- plt9 + scale_x_discrete(labels = expression(
+  #6, #9
+        italic("Nvaa2BR-like-2"), italic("Nvmuc1-like-2"), italic("Nvegfl8-like-1"), italic("Nv2.15162"), italic("Nvvwa7-like-2"), #11
+        italic("Nvblml2-like-1"), italic("Nv2.14153"), italic("Nvaa3R-like-7"), italic("Nvtaar6-like-2"), italic("Nv2.21248"),  #13
+        italic("Nvprga-R.199"), italic("Nv2.21840"), italic("Nvshb-like-6"), italic("Nvgr101-like-10"), italic("Nv2.1446"), #5
+  #2, #0
+        italic("Nv2.24838"), italic("Nvaebp1-like-1"), italic("Nvats7-like-1"), italic("Nvlox5-like-3"), italic("Nvnas4-like-2"), #7
+        italic("Nvviaat-like-40"), italic("Nvfez"), italic("NvCNTP1-like-14"), italic("NvSC6A1-like-9"), italic("Nvbtn1-like-6"), #14
+        italic("Nv2.15930"), italic("Nv2.2620"), italic("Nv2.2627"), italic("Nv2.2623"), italic("Nv2.20225"), #18
+        italic("Nvviaat-like-31"), italic("Nvbha15-like-1"), italic("Nv2.15217"), italic("Nv2.15222"), italic("Nvnr1BA-like-1"), #17
+        italic("Nv2.21058"), italic("Nvaa2AR-like-3"), italic("Nvopn4-like-13"), italic("Nv2.14663"), italic("Nv2.9262"), #22
+        italic("Nvach10-like-11"), italic("Nvqrfpr-like-31"), italic("Nvhce2-like-1"), italic("Nv.15156"), italic("Nv2.15982"), #19
+        italic("Nv2.1204"), italic("Nv2.1205"), italic("Nvopn4B-like-6"), italic("Nvadrb2-like-40"), italic("Nvcckar-like-2"), #21
+        italic("Nv2.14532"), italic("Nvtda6-like-1"), italic("Nvgp2-like-44"), italic("Nv2.4414"), italic("Nv2.9834") #8
+                                                ))
+plt9
+ ggsave(plt9, file = "/ashAmarkersNGdata.jpg", width = 15, height = 10)
+```
+
+
+#Supplemental Figure 5
+#cnidocyte subtype dotplot - full clusters
+```{r fig.width = 8, fig.height = 3}}
+
+ashA_combinedv4_20dims <- SetIdent(ashA_combinedv4_20dims, value = ashA_combinedv4_20dims@meta.data$seurat_clusters)
+ashA_combinedv4_20dims@active.ident <- factor(ashA_combinedv4_20dims@active.ident,
+                                   levels = c("16", "4", "3", "10", "12", "1", "15", "20", "6", "9", "11", "13", "5",
+                                               "2", "0", "7",
+                                              "14", "18", "17", "22", "21", "19", "8"))
+
+features_CnidoSub <- c("NV2g000363000.1", "NV2g007706000.1", "NV2g007069000.1", "NV2g001852000.1", 
+                       "NV2g014792000.1", "NV2g003097000.1", "NV2g005947000.1", "NV2g015684000.1",
+                       "NV2g010927000.1", "NV2g018311000.1", "NV2g009989000.1", "NV2g003202000.1",
+                       "NV2g007207000.1", "NV2g002780000.1", "NV2g007209000.1", "NV2g019217000.1", 
+                       "NV2g025705000.1", "NV2g012610000.1", "NV2g009823000.1", "NV2g004514000.1",
+                       "NV2g021967000.1", "NV2g014593000.1", "NV2g014594000.1", "NV2g019221000.1", 
+                       "NV2g014815000.1", "NV2g007709000.1", 
+                       "NV2g009503000.1", "NV2g008284000.1", "NV2g012900000.1", "NV2g007818000.1",
+                       "NV2g011818000.1", "NV2g012689000.1", "NV2g010115000.1", "NV2g011819000.1",
+                       "NV2g009120000.1", "NV2g000411000.1", "NV2g002044000.1", "NV2g004676000.1", 
+                       "NV2g014822000.1", "NV2g018300000.1", "NV2g014159000.1", "NV2g018114000.1", 
+                       "NV2g009028000.1", "NV2g015716000.1", "NV2g003814000.1", "NV2g020507000.1")
+
+
+     plt <- DotPlot(ashA_combinedv4_20dims, features = features_CnidoSub) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmarco-like-2"), italic("Nvnh2l1-like-1"), italic("Nvh3-like-17"), italic("Nvdmrt-E"),  
+                                              italic("Nvrl12-like-1"), italic("Nvrs3a-like-1"), italic("Nvrs8-like-1",), italic("Nvrs12-like-1"),
+                                              italic("Nvshk1"), italic("Nv2.18311"), italic("Nvco6-like-4"), italic("Nvhmcn1-like-87"),
+                                              italic("Nvvmp6"), italic("Nvhmcn1-like-89"), italic("Nv2.7209"), italic("Nv2.19217"), 
+                                              italic("Nv2.25705"), italic("Nvmac1"), italic("Nv2.9823"), italic("Nvcop3-like-1"),
+                                              italic("Nv2.21967"), italic("Nv2.14593"), italic("Nv2.14594"), italic("Nv2.19221"), 
+                                              italic("Nv2.14815"), italic("Nv2.7709"), 
+                                              italic("Nv2.9503"), italic("Nv2.8284"), italic("Nvcapa-like-1"), italic("Nvggha-like-11"),
+                                              italic("Nvco6a-like-6"), italic("Nv2.12689"), italic("Nv2.10115"), italic("NV2.11819"),
+                                              italic("Nvnupr1-like-1"), italic("Nvak1a1-like-1"), italic("Nv2.2044"), italic("Nvtraf4-like-19"), 
+                                              italic("Nv2.14822"), italic("Nv2.18300"), italic("Nvlama2-like-2.1"), italic("Nvisp2-like-2"),
+                                              italic("Nvgabr2-like-21"), italic("Nvfbp1-like-2"), italic("Nvnpff2-like-90"), italic("Nvpk1l2-like-31")))
+     plt <- plt + ggtitle('Cnidocyte subtype markers in NvashA subset')
+     plt
+     ggsave(plt, file = "/CnidoSubtypeDotplotv2.jpg", width = 12, height = 8)
+ 
+    
+     #removed NV2g015045000.1,NV2g025210000.1, NV2g018310000.1, NV2g006718000.1, NV2g007385000.1, NV2g016293000.1, NV2g025609000.1, NV2g008572000.1   NV2g014765000.1,  NV2g007708000.1, NV2g019873000.1 = not found
+```
+
+#umaps for cnidocyte genes on NvashA subset 
+```{r}
+list_of_genes <- c("NV2g019749000.1", "NV2g010686000.1", "NV2g010927000.1", "NV2g018311000.1", "NV2g007706000.1", "NV2g001852000.1")
+list_of_names <- c("Nvcnido-fos1", "Nvncol3", "Nvshk1", "Nv2.18311", "Nvnh2l1-like-1", "Nvdmrt-E")
+
+if(length(list_of_names) == length(list_of_genes)){
+   for(i in 1:length(list_of_genes)){
+     plt <- FeaturePlot_scCustom(ashA_combinedv4_20dims, features = list_of_genes[i], pt.size = 0.005)
+     plt <- plt + ggtitle(list_of_names[i])
+     print(plt)
+     ggsave(plt, file = paste0("/ashA_combined/umaps/",  list_of_names[i], "-umap.jpg"), device = "jpg", width = 5, height = 4)
+   }
+  } else {
+    message("Error! - fix your names/ids!")
+  }
+```
+
+
+#Supplemental Figure 6 
+#UMAPs for ashA target genes on ashA subset
+```{r}
+list_of_genes <- c("NV2g023192000.1", "NV2g024331000.1", "NV2g005875000.1", "NV2g012875000.1")
+list_of_names <- c( "Nvlwamide-like", "NvglraA3-like", "Nvserum amyloid A-like", "Nvabcc4-like")
+
+if(length(list_of_names) == length(list_of_genes)){
+   for(i in 1:length(list_of_genes)){
+     plt <- FeaturePlot_scCustom(ashA_combinedv4_20dims, features = list_of_genes[i], pt.size = 0.005)
+     plt <- plt + ggtitle(list_of_names[i])
+     print(plt)
+   }
+  } else {
+    message("Error! graphs won't genereate - fix your names/ids!")
+  }
+```
+
+# NvashA known target genes on gastrula dataset
+```{r}
+Stella_combined_filt_gastrula <- SetIdent(Stella_combined_filt_gastrula, value = Stella_combined_filt_gastrula@meta.data$seurat_clusters)
+Stella_combined_filt_gastrula@active.ident <- factor(Stella_combined_filt_gastrula@active.ident,
+                                   levels = c("13", "14", "27", "25", "16", "20", "29", "30",
+                                             "23", "10", "19", "11",
+                                               "17", "18", "28", "5", "3", "7", "26", "1", "2", "24", "6", "9", "22", "8", "21", "15", "0", "4", "12"))
+
+list_of_genes <- c("NV2g009665000.1", "NV2g023192000.1", "NV2g024331000.1", "NV2g005875000.1", "NV2g012875000.1")
+
+     plt3 <- DotPlot(Stella_combined_filt_gastrula, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt3 <- plt3 + scale_x_discrete(labels = expression(italic("NvashA"), italic("Nvlwamide-like"), italic("NvglraA3-like"), italic("Nvserum amyloid A-like"), italic("Nvabcc4-like")))
+     plt3 <- plt3 + ggtitle('NvashA targets on gastrula dataset')
+     plt3
+```
+
+# NvashA known target genes on mid planula dataset
+```{r}
+Stella_mid_pl <- SetIdent(Stella_mid_pl, value = Stella_mid_pl@meta.data$seurat_clusters)
+Stella_mid_pl@active.ident <- factor(Stella_mid_pl@active.ident,
+                                   levels = c("10", "17", "15", "9", "6", "16", "12", "20",
+                                              "5", "19", "18", "13",
+                                               "0", "1", "2", "3", "4", "7", "8", "11", "14"))
+
+list_of_genes <- c("NV2g009665000.1", "NV2g023192000.1", "NV2g024331000.1", "NV2g005875000.1", "NV2g012875000.1")
+
+     plt3 <- DotPlot(Stella_mid_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt3 <- plt3 + scale_x_discrete(labels = expression(italic("NvashA"), italic("Nvlwamide-like"), italic("NvglraA3-like"), italic("Nvserum amyloid A-like"), italic("Nvabcc4-like")))
+     plt3 <- plt3 + ggtitle('NvashA targets on mid planula dataset')
+     plt3
+```
+
+# NvashA known targets on late planula dataset
+```{r}
+Stella_late_pl <- SetIdent(Stella_late_pl, value = Stella_late_pl@meta.data$seurat_clusters)
+Stella_late_pl@active.ident <- factor(Stella_late_pl@active.ident,
+                                   levels = c("10", "31", "14", "21", "20", "22", "30", "18", 
+                                              "13", "19", "3", "32", "28", "27", "23", 
+                                               "8", "12", "25", "17", "15", "7", 
+                                               "0", "1", "2", "4", "5", "6", "9", "11", "16","24", "26", "29"))
+
+list_of_genes <- c("NV2g009665000.1", "NV2g023192000.1", "NV2g024331000.1", "NV2g005875000.1", "NV2g012875000.1")
+
+     plt3 <- DotPlot(Stella_late_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt3 <- plt3 + scale_x_discrete(labels = expression(italic("NvashA"), italic("Nvlwamide-like"), italic("NvglraA3-like"), italic("Nvserum amyloid A-like"), italic("Nvabcc4-like")))
+     plt3 <- plt3 + ggtitle('NvashA targets on late planula dataset')
+     plt3
+```
+
+
+#FIGURE 2
+#Subsetting neual only cells from NvashA+ subset
+```{r}
+ashA_neural_sub3 <- subset(x = ashA_combinedv4_20dims, idents = c("6", "9", "11", "13", "5",
+                                               "2", "0", "7",
+                                              "14", "18", "17", "22", "19", "21"))
+
+save(ashA_neural_sub3,
+     file = file.path(DATA_DIR, "ashA_neural_sub3.Rda"))
+```
+
+```{r}
+# keep original cluster IDs (the ones it was subset by)
+ashA_neural_sub3$cluster_orig <- Idents(ashA_neural_sub3)
+
+# preserve level order from the parent object
+ashA_neural_sub3$cluster_orig <- factor(
+  ashA_neural_sub3$cluster_orig,
+  levels = levels(ashA_combinedv4_20dims)  # keeps original cluster order
+)
+
+# (optional) also stash numeric seurat_clusters if present
+if ("seurat_clusters" %in% colnames(ashA_neural_sub3@meta.data)) {
+  ashA_neural_sub3$seurat_clusters_orig <- ashA_neural_sub3$seurat_clusters
+}
+
+table(ashA_neural_sub3$cluster_orig)
+
+```
+
+```{r}
+# Recalculate within the subset
+ashA_neural_sub3 <- NormalizeData(ashA_neural_sub3)
+ashA_neural_sub3 <- FindVariableFeatures(ashA_neural_sub3, selection.method = "vst", nfeatures = 2000)
+ashA_neural_sub3 <- ScaleData(ashA_neural_sub3)
+ashA_neural_sub3 <- RunPCA(ashA_neural_sub3, npcs = 30)
+```
+
+15 dims
+```{r}
+ashA_neural_sub3_15dims <- FindNeighbors(ashA_neural_sub3, dims = 1:15)
+ashA_neural_sub3_15dims <- FindClusters(ashA_neural_sub3_15dims, resolution = 1)
+head(Idents(ashA_neural_sub3_15dims), 10)
+ashA_neural_sub3_15dims <- RunUMAP(ashA_neural_sub3_15dims, dims = 1:15, verbose = FALSE)
+
+p1 <- DimPlot(ashA_neural_sub3_15dims, reduction = "umap", group.by = "timepoint", label = FALSE, pt.size = 0.1, label.size = 5)
+p2 <- DimPlot(ashA_neural_sub3_15dims, reduction = "umap",group.by = "orig.ident" , pt.size = 0.1)
+p3 <- DimPlot(ashA_neural_sub3_15dims, reduction = "umap", label = TRUE, pt.size = 0.1, label.size = 8)
+p4 <- DimPlot(ashA_neural_sub3_15dims, reduction = "umap", label = FALSE, pt.size = 0.1, label.size = 8)
+
+ashA_neural_sub3_15dims$cluster_new <- Idents(ashA_neural_sub3_15dims)
+
+p1
+p2
+p3
+p4
+
+save(ashA_neural_sub3_15dims3,
+     file = file.path(DATA_DIR, "ashA_neural_sub3_15dims.Rda"))
+
+```
+
+```{r}
+#  plot originals without changing Idents()
+p_orig <- DimPlot(
+  ashA_neural_sub3_15dims,
+  reduction = "umap",
+  group.by = "cluster_orig",
+  label = TRUE, repel = TRUE, pt.size = 0.1
+) + ggtitle("UMAP — Original cluster IDs")
+
+# New clusters (current Idents) for comparison
+p_new <- DimPlot(
+  ashA_neural_sub3_15dims,
+  reduction = "umap",
+  label = TRUE, repel = TRUE, pt.size = 0.1
+) + ggtitle("UMAP — New clusters")
+
+p_new; p_orig
+
+```
+
+#Supplemental Figure 7 
+#annotation_final_for paper
+```{r fig.width = 9, fig.height = 7}
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1","NV2g016402000.1", "NV2g004477000.1",  "NV2g006608000.1", "NV2g009665000.1", "NV2g023192000.1", "NV2g000252000.1"
+                   )
+
+     plt <- DotPlot(ashA_neural_sub3_15dims, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10) 
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("NvsoxC"), italic("NvsoxB(2)"),  italic("Nvath-like"), italic("NvashA"), italic("NvLWamide-like"), italic("Nvelav1")
+        ))
+     plt <- plt + ggtitle('NvashA neural subset')
+     plt
+```
+
+#used this code to find all markers 
+```{r}
+markers_ashA_neural_sub3_15dims <- FindAllMarkers(ashA_neural_sub3_15dims)
+library(rio)
+library(dplyr)
+markers_ashA_neural_sub3_15dims %>% 
+  tibble::rownames_to_column("gene_id") %>% 
+  rio::export(., file = "/markers_ashA_neural_sub3_15dims.csv")
+```
+
+
+```{r}
+library(dplyr)
+library(readr)
+library(readxl)
+
+### 1. Read  marker file (from Seurat FindAllMarkers output)
+markers <- read_csv("markers_ashA_neural_sub3_15dims.csv")
+
+### 2. Read annotation file
+annotations <- read_csv("manifest_mappings.csv")
+
+### 3. Extract top 5 genes per cluster *in file order*
+top_markers <- markers %>%
+  group_by(cluster) %>%
+  mutate(row_in_cluster = row_number()) %>%
+  filter(row_in_cluster <= 5) %>%
+  ungroup() %>%
+  arrange(cluster, row_in_cluster)
+
+### 4. Join annotations
+# top_markers$gene is Nv2gID
+# annotations$mapped_geneID is the matching column
+top_markers_annot <- top_markers %>%
+  left_join(annotations, by = c("gene" = "mapped_geneID"))
+
+### 5. Construct feature vector (Nv2g IDs) and label vector (gene names)
+list_of_genes <- top_markers_annot$gene                # Seurat features
+labels_vec    <- top_markers_annot$gene.name           # Human-readable names
+
+### 6. Replace missing names with gene IDs
+labels_vec[is.na(labels_vec)] <- list_of_genes[is.na(labels_vec)]
+
+```
+
+```{r fig.width = 20, fig.height = 10}
+plt5 <- DotPlot(
+  ashA_neural_sub3_15dims,
+  features = list_of_genes,
+  scale = FALSE
+) +
+  RotatedAxis() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  FontSize(10)
+
+plt5 <- plt5 + scale_x_discrete(labels = labels_vec)
+
+plt5 <- plt5 + ggtitle("Top 5 subset markers on NvashA neural subset")
+plt5
+```
+
+#used this code to easily see the top 5 genes
+```{r}
+# This will PRINT a block:
+clusters <- sort(unique(top_markers$cluster))
+
+cat("list_of_genes <- c(\n")
+for (cl in clusters) {
+  genes_cl <- top_markers$gene[top_markers$cluster == cl]
+  cat("  ", paste0('"', genes_cl, '"', collapse = ", "), ", #", cl, "\n", sep = "")
+}
+cat(")\n")
+
+```
+
+```{r}
+# Print human-readable gene names grouped by cluster
+clusters <- sort(unique(top_markers_annot$cluster))
+
+cat("labels_vec <- c(\n")
+for (cl in clusters) {
+  names_cl <- top_markers_annot$gene.name[top_markers_annot$cluster == cl]
+  # Replace any NA names with the Nv2g ID so nothing is blank
+  names_cl[is.na(names_cl)] <- top_markers_annot$gene[top_markers_annot$cluster == cl][is.na(names_cl)]
+  
+  cat("  ", paste0('"', names_cl, '"', collapse = ", "), ", #", cl, "\n", sep = "")
+}
+cat(")\n")
+
+```
+
+```{r fig.width = 20, fig.height = 10}
+
+
+list_of_genes <- c("NV2g021840000.1", "NV2g021302000.1", "NV2g024129000.1", "NV2g001446000.1", "NV2g012348000.1", #0
+                   "NV2g007811000.1", "NV2g012793000.1", "NV2g018662000.1", "NV2g014260000.1", "NV2g010809000.1", #1
+                   "NV2g014348000.1", "NV2g014774000.1", "NV2g001200000.1", "NV2g016299000.1", "NV2g019361000.1", #2
+                   "NV2g018827000.1", "NV2g018825000.1", "NV2g002299000.1", "NV2g002596000.1", "NV2g020327000.1", #3
+                   "NV2g011343000.1", "NV2g023614000.1", "NV2g012875000.1", "NV2g024863000.1", "NV2g003856000.1", #4
+                   "NV2g011441000.1", "NV2g008165000.1", "NV2g011806000.1", "NV2g011442000.1", "NV2g000333000.1", #5
+                   "NV2g011772000.1", "NV2g014153000.1", "NV2g025073000.1", "NV2g004915000.1", "NV2g021248000.1", #6
+                   "NV2g006813000.1", "NV2g006810000.1", "NV2g008789000.1", "NV2g017754000.1", "NV2g006809000.1", #7
+                   "NV2g007753000.1", "NV2g001757000.1", "NV2g004704000.1", "NV2g020120000.1", "NV2g004096000.1", #8
+                   "NV2g013863000.1", "NV2g002898000.1", "NV2g014792000.1", "NV2g006333000.1", "NV2g004360000.1", #9
+                   "NV2g020623000.1", "NV2g025991000.1", "NV2g021230000.1", "NV2g018400000.1", "NV2g023233000.1", #10
+                   "NV2g000160000.1", "NV2g005192000.1", "NV2g004530000.1", "NV2g014941000.1", "NV2g024159000.1", #11
+                   "NV2g011608000.1", "NV2g016903000.1", "NV2g008266000.1", "NV2g017107000.1", "NV2g001999000.1", #12
+                   "NV2g002620000.1", "NV2g002627000.1", "NV2g015930000.1", "NV2g002623000.1", "NV2g009018000.1", #13
+                   "NV2g015362000.1", "NV2g018588000.1", "NV2g003875000.1", "NV2g024629000.1", "NV2g006966000.1", #14
+                   "NV2g000450000.1", "NV2g005143000.1", "NV2g005142000.1", "NV2g006552000.1", "NV2g005046000.1", #15
+                   "NV2g001204000.1", "NV2g001205000.1", "NV2g007735000.1", "NV2g018362000.1", "NV2g022444000.1", #16
+                   "NV2g010279000.1", "NV2g009708000.1", "NV2g014290000.1", "NV2g023195000.1", "NV2g015846000.1", #17
+                   "NV2g021058000.1", "NV2g009262000.1", "NV2g013128000.1", "NV2g014663000.1", "NV2g016346000.1" #18
+                   )
+
+     plt4 <- DotPlot(ashA_neural_sub3_15dims, features = list_of_genes, scale = FALSE) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt4 <- plt4 + scale_x_discrete(labels = c("NV2g021840000.1", "NV2g021302000.1", "NV2g024129000.1", "NV2g001446000.1", "NV2g012348000.1", #0
+                   "NV2g007811000.1", "NV2g012793000.1", "NV2g018662000.1", "NV2g014260000.1", "NV2g010809000.1", #1
+                   "NV2g014348000.1", "NV2g014774000.1", "NV2g001200000.1", "NV2g016299000.1", "NV2g019361000.1", #2
+                   "NV2g018827000.1", "NV2g018825000.1", "NV2g002299000.1", "NV2g002596000.1", "NV2g020327000.1", #3
+                   "NV2g011343000.1", "NV2g023614000.1", "NV2g012875000.1", "NV2g024863000.1", "NV2g003856000.1", #4
+                   "NV2g011441000.1", "NV2g008165000.1", "NV2g011806000.1", "NV2g011442000.1", "NV2g000333000.1", #5
+                   "NV2g011772000.1", "NV2g014153000.1", "NV2g025073000.1", "NV2g004915000.1", "NV2g021248000.1", #6
+                   "NV2g006813000.1", "NV2g006810000.1", "NV2g008789000.1", "NV2g017754000.1", "NV2g006809000.1", #7
+                   "NV2g007753000.1", "NV2g001757000.1", "NV2g004704000.1", "NV2g020120000.1", "NV2g004096000.1", #8
+                   "NV2g013863000.1", "NV2g002898000.1", "NV2g014792000.1", "NV2g006333000.1", "NV2g004360000.1", #9
+                   "NV2g020623000.1", "NV2g025991000.1", "NV2g021230000.1", "NV2g018400000.1", "NV2g023233000.1", #10
+                   "NV2g000160000.1", "NV2g005192000.1", "NV2g004530000.1", "NV2g014941000.1", "NV2g024159000.1", #11
+                   "NV2g011608000.1", "NV2g016903000.1", "NV2g008266000.1", "NV2g017107000.1", "NV2g001999000.1", #12
+                   "NV2g002620000.1", "NV2g002627000.1", "NV2g015930000.1", "NV2g002623000.1", "NV2g009018000.1", #13
+                   "NV2g015362000.1", "NV2g018588000.1", "NV2g003875000.1", "NV2g024629000.1", "NV2g006966000.1", #14
+                   "NV2g000450000.1", "NV2g005143000.1", "NV2g005142000.1", "NV2g006552000.1", "NV2g005046000.1", #15
+                   "NV2g001204000.1", "NV2g001205000.1", "NV2g007735000.1", "NV2g018362000.1", "NV2g022444000.1", #16
+                   "NV2g010279000.1", "NV2g009708000.1", "NV2g014290000.1", "NV2g023195000.1", "NV2g015846000.1", #17
+                   "NV2g021058000.1", "NV2g009262000.1", "NV2g013128000.1", "NV2g014663000.1", "NV2g016346000.1" #18
+                                                ))
+     plt4 <- plt4 + ggtitle('top 5 subset markers on NvashA neural subset')
+     plt4
+     ggsave(plt4, file = "/top_markersNeural_dotplot.jpg", width = 20, height = 10)
+```
+
+# Nvasha+ neural cluster markers on Cole et al. 2024's neuroglandular dataset
+```{r, fig.width = 15, fig.height = 10}
+
+genes <- c("NV2.21840", "PRGa-R.199", "SHB-like-6", "NV2.1446", "PR1-like-1", #0
+  "NV2.7811", "OtxC", "ADA1A-like-16", "NV2.14260", "ACH10-like-9", #1
+  "PAPSS-like-1", "NV2.14774", "THIO-like-1", "PRGa", #"HLSa/SNIa/NTVa", #2
+  "myc1", "Myc3", "NV2.2299", "YPF17-like-2", "ADRB2-like-31", #3
+  "AA2BR-like-2", "NV2.23614", "MRP4-like-1", "MUC1-like-2", "NV2.3856", #4
+  "FoxA", "VKT52-like-1", "PPR27-like-12", "NV2.11442", "RSPH1-like-4", #5
+  "BLML2-like-1", "NV2.14153", "AA3R-like-7", "TAAR6-like-2", "NV2.21248", #6
+  "NV2.6813", "MLRP2-like-30", "NV2.8789", "NV2.17754", "GR101-like-11", #7
+  "VIAAT-like-40", "fez", "CNTP1-like-14", "TMPS6-like-2", "SC6A1-like-9", #8
+  "NV2.13863", "NV2.2898", "RL12-like-1", "RL7-like-1", "RL13-like-1", #9
+  "RPAC1-like-1", "FOXD1-like-1", "ATS6-like-7", "DD3-like-2", "NV2.23233", #10
+  "NV2.160", "NV2.5192", "SEGN-like-4", "BIR7B-like-1", "MCTP1-like-1", #11
+  "BHA15-like-1", "GRIA3-like-1", "NV2.8266", "NR1BA-like-1", "VIAAT-like-31", #12
+  "NV2.2620", "NV2.2627", "NV2.15930", "NV2.2623", "NV2.9018", #13
+  "HCE2-like-1", "ACH10-like-11", "QRFPR-like-31", "ADRB1-like-1", "TLR1-like-4", #14
+  "NV2.450", "NV2.5143", "NV2.5142", "DMBT1-like-29", "NV2.5046", #15
+  "NV2.1204", "NV2.1205", "OPN4B-like-6", "ADRB2-like-40", "AGRL3-like-1", #16
+  "NV2.10279", "GBRB1-like-5", "NV2.14290", "LOX5-like-3", "CNTP5-like-7", #17
+  "NV2.21058", "NV2.9262", "AA2AR-like-3", "NV2.14663", "OPN4-like-13" #18
+  ) 
+
+plt9 <- DotPlot(neurogland.all, features = genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+plt9 <- plt9 + ggtitle("ashA neural cluster markers on neurogland")
+#plt9 <- plt9 + scale_x_discrete(labels = expression(
+   #                                             italic("")))
+plt9
+ ggsave(plt9, file = "/ashAneuralmarkersNGdata.jpg", width = 15, height = 10)
+
+```
+
+```{r}
+dim(ashA_neural_sub3_15dims)
+ncol(ashA_neural_sub3_15dims)
+```
+
+
+#trajectory and pseudotime
+trajectory analysis with node selection
+```{r}
+library(Seurat)
+library(monocle3)
+library(SeuratWrappers)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+#----------------------------------------------------------
+# 1) Start from your Seurat object
+#----------------------------------------------------------
+seu <- ashA_neural_sub3_15dims
+
+#----------------------------------------------------------
+# 2) Convert Seurat -> Monocle3 CDS
+#----------------------------------------------------------
+cds <- SeuratWrappers::as.cell_data_set(seu)
+
+#----------------------------------------------------------
+# 3) Cluster cells & define partitions (Monocle3)
+#----------------------------------------------------------
+cds <- monocle3::cluster_cells(
+  cds = cds,
+  reduction_method = "UMAP",
+  resolution = 0.001   # ~Seurat res 0.1
+)
+
+# (optional sanity checks)
+monocle3::plot_cells(cds)                                # clusters
+monocle3::plot_cells(cds, color_cells_by = "partition")  # partitions
+
+#----------------------------------------------------------
+# 4) Learn the trajectory graph using those partitions
+#----------------------------------------------------------
+cds <- monocle3::learn_graph(
+  cds,
+  use_partition = TRUE,
+  close_loop   = TRUE
+)
+
+#----------------------------------------------------------
+# 5) Choose roots interactively & compute pseudotime
+#   - A plot appears: click the node(s) where you want
+#----------------------------------------------------------
+cds <- monocle3::order_cells(cds)
+
+#----------------------------------------------------------
+# 6) Extract pseudotime and CLEAN it (no Inf)
+#----------------------------------------------------------
+pt <- monocle3::pseudotime(cds)
+
+# replace Inf / -Inf / NaN with NA so Seurat can plot it
+pt_clean <- ifelse(is.finite(pt), pt, NA_real_)
+
+# put cleaned pseudotime into Seurat
+seu$cds_pseudotime <- pt_clean
+
+# quick check
+summary(seu$cds_pseudotime)
+
+#----------------------------------------------------------
+# 7) Summarize which clusters are early/late (optional)
+#----------------------------------------------------------
+meta <- as.data.frame(colData(cds))
+meta$partition_m3 <- monocle3::partitions(cds)
+meta$cluster_m3   <- monocle3::clusters(cds)
+meta$pt           <- pt_clean
+
+meta_summary <- meta %>%
+  group_by(partition = partition_m3, cluster = cluster_m3) %>%
+  summarise(
+    n_cells = n(),
+    min_pt  = min(pt,  na.rm = TRUE),
+    mean_pt = mean(pt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(partition, min_pt)
+
+meta_summary   # <-- table tells you what’s earliest in each partition
+
+#----------------------------------------------------------
+# 8) Pseudotime-only monocle plot (blue-yellow viridis) + mirror
+#----------------------------------------------------------
+# helper to flip left-right
+mirror_x <- function(p) p + scale_x_reverse()
+
+p_pseudo <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = FALSE,   # no lines, just cells
+  label_groups_by_cluster = FALSE,
+  graph_label_size = 0,
+  cell_size = 0.5
+)
+
+p_pseudo_colored <- p_pseudo +
+  scale_color_viridis_c(option = "C") +  # blue->yellow palette
+  theme_classic()
+
+p_pseudo_mirrored <- mirror_x(p_pseudo_colored)
+
+p_pseudo_mirrored   # <-- this should be “pseudotime only” mirrored panel
+
+#----------------------------------------------------------
+# 9) FeaturePlot pseudotime on Seurat UMAP
+#----------------------------------------------------------
+FeaturePlot(
+  seu,
+  features  = "cds_pseudotime",
+  reduction = "umap",
+  pt.size   = 0.1
+)
+
+#----------------------------------------------------------
+# 10) Save rooted CDS
+#----------------------------------------------------------
+saveRDS(cds, file = "ashA_neural_sub3_monocle_rooted.rds")
+
+```
+
+```{r}
+# Trajectory + partitions, not mirrored
+p_part_traj <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "partition",
+  show_trajectory_graph = TRUE,
+  label_groups_by_cluster = FALSE,   # no cluster labels
+  label_roots = TRUE,
+  label_leaves = TRUE,
+  label_branch_points = TRUE
+)
+
+p_part_traj
+
+# Mirrored version (to match other panels)
+p_part_traj_mirrored <- mirror_x(p_part_traj)
+p_part_traj_mirrored
+
+```
+
+
+```{r}
+p_part_traj_clean <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "partition",
+  show_trajectory_graph = TRUE,
+  label_groups_by_cluster = FALSE,
+  label_roots = FALSE,
+  label_leaves = FALSE,
+  label_branch_points = FALSE
+)
+
+p_part_traj_clean_mirrored <- mirror_x(p_part_traj_clean)
+p_part_traj_clean_mirrored
+
+```
+
+```{r}
+# pseudotime-only (new rooting)
+pC_new <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = FALSE,
+  label_groups_by_cluster = FALSE,
+  graph_label_size = 0,
+  cell_size = 0.5
+) + 
+  scale_x_reverse()   # mirrored to match the others
+
+pC_new
+
+#  pseudotime + trajectory (new rooting)
+pD_new <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE,
+  label_roots = TRUE,
+  label_leaves = TRUE,
+  label_branch_points = TRUE,
+  label_groups_by_cluster = FALSE,
+  cell_size = 0.5
+) + 
+  scale_x_reverse()
+
+pD_new
+
+```
+
+```{r}
+p_traj_clean <- monocle3::plot_cells(
+  cds,
+  color_cells_by = "pseudotime",    
+  show_trajectory_graph = TRUE,      
+  label_roots = FALSE,
+  label_leaves = FALSE,
+  label_branch_points = FALSE,
+  label_groups_by_cluster = FALSE, 
+  cell_size = 0.5
+)
+
+p_traj_clean
+
+p_traj_clean_mirrored <- p_traj_clean + scale_x_reverse()
+p_traj_clean_mirrored
+
+```
+
+

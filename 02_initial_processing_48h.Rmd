@@ -1,0 +1,337 @@
+---
+title: "initial processing of early planula datasets"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Force notebook chunks to use the project root as working directory
+knitr::opts_knit$set(
+  root.dir = "/Users/stella2/Documents/scRNAseq/Jamie/ashA_combined"
+)
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(janitor)
+library(sctransform)
+library(DoubletFinder)
+
+set.seed(6)
+
+#Embryo_48 = early planula dataset
+
+DATA_DIR    <- "Embryo_48hpf/data"
+RESULTS_DIR <- "Embryo_48hpf/results"
+
+dir.create(DATA_DIR,    showWarnings = FALSE, recursive = TRUE)
+dir.create(RESULTS_DIR, showWarnings = FALSE, recursive = TRUE)
+
+mt_genes <- c(
+  "NV2g000053000.1", "NV2g025931000.1", "NV2g006232000.1", "NV2g024053000.1",
+  "NV2g007852000.1", "NV2g000772000.1", "NV2g001453000.1", "NV2g002690000.1",
+  "NV2g002540000.1", "NV2g002424000.1"
+)
+
+```
+
+```{r}
+# Sample A2 = early planula A2
+
+A2.data <- Read10X(
+data.dir = file.path(DATA_DIR, "filtered_feature_bc_matrix")
+)
+A2 <- CreateSeuratObject(counts = A2.data, project = "StellaA2")
+
+# Sample B2 = early planula B2
+
+B2.data <- Read10X(
+data.dir = file.path(DATA_DIR, "filtered_feature_bc_matrix_B2")
+)
+B2 <- CreateSeuratObject(counts = B2.data, project = "StellaB2")
+
+```
+
+```{r}
+# Sample A2
+
+# Add percent.mt based on Nv mitochondrial markers
+A2 <- PercentageFeatureSet(
+  A2,
+  features = mt_genes,
+  col.name = "percent.mt"
+)
+
+# QC visualization
+VlnPlot(A2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1a2 <- FeatureScatter(A2, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2a2 <- FeatureScatter(A2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1a2 + plot2a2
+
+# Filter low-quality cells and high MT / extreme counts
+A2 <- subset(
+  A2,
+  subset = nFeature_RNA > 250 & nFeature_RNA < 10000 &
+           percent.mt   < 10 &
+           nCount_RNA   > 500 & nCount_RNA   < 50000
+)
+
+vplot1a2 <- VlnPlot(A2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+vplot1a2
+
+# SCTransform normalization
+A2 <- SCTransform(
+  A2,
+  vst.flavor      = "v2",
+  method          = "glmGamPoi",
+  vars.to.regress = "percent.mt",
+  verbose         = FALSE
+)
+
+# Dimensionality reduction and clustering
+
+A2 <- RunPCA(A2, verbose = FALSE)
+A2 <- RunUMAP(A2, dims = 1:30, verbose = FALSE)
+A2 <- FindNeighbors(A2, dims = 1:30, verbose = FALSE)
+A2 <- FindClusters(A2, verbose = FALSE)
+
+umap_plotA2 <- DimPlot(A2, reduction = "umap", label = TRUE, pt.size = 0.05, label.size = 8)
+umap_plotA2
+```
+
+```{r}
+## ---- A2 pK diagnostic ---------------------------------------------
+
+## pK Identification (no ground truth)
+sweep.res.list_A2 <- paramSweep(A2, PCs = 1:10, sct = TRUE)
+sweep.stats_A2    <- summarizeSweep(sweep.res.list_A2, GT = FALSE)
+bcmvn_A2          <- find.pK(sweep.stats_A2)
+bcmvn_A2
+
+# Get optimal pK
+bcmvn.max_A2  <- bcmvn_A2[which.max(bcmvn_A2$BCmetric), ]
+optimal.pk    <- bcmvn.max_A2$pK
+optimal.pk_A2 <- as.numeric(as.character(optimal.pk))
+
+# this also finds optimal pk.
+pK_A2        <- as.numeric(as.character(bcmvn_A2$pK))
+BCmetricA2  <- bcmvn_A2$BCmetric
+pK_chooseA2 <- pK_A2[which(BCmetricA2 %in% max(BCmetricA2))]
+
+par(mar = c(5,4,4,8)+1, cex.main=1.2, font.main=2)
+{
+  plot(x = pK_A2, y = BCmetricA2, pch = 16, type = "b", col = "blue", lty = 1)
+  abline(v = optimal.pk_A2, lwd = 2, col = "red", lty = 2)
+  title("The BCmvn distributions (A2)")
+  text(pK_chooseA2, max(BCmetricA2), as.character(pK_chooseA2), pos = 4, col = "red")
+}
+ #0.01 = optimal.pk_A2
+```
+
+
+```{r}
+## ---- A2_doubletfinder----------------
+
+annotations_A2    <- A2@meta.data$seurat_clusters
+homotypic.prop_A2 <- modelHomotypic(annotations_A2)
+nExp_poi_A2       <- round(0.075 * nrow(A2@meta.data))
+nExp_poi.adj_A2   <- round(nExp_poi_A2 * (1 - homotypic.prop_A2))
+nExp_poi.adj_A2
+
+nExpA2 <- round(ncol(A2) * 0.075)  # 7.5% expected doublets
+
+A2a <- doubletFinder_v3(       
+  A2,  
+  pN   = 0.25,
+  pK   = optimal.pk_A2,  # from the BCmvn sweep
+  nExp = nExpA2,
+  PCs  = 1:10,
+  sct  = TRUE
+)
+
+DF.nameA2 <- colnames(A2a@meta.data)[grepl("DF.classifications", colnames(A2a@meta.data))]
+Idents(A2a) <- DF.nameA2
+DimPlot(A2a)
+
+A2a_filt <- A2a[, A2a@meta.data[, DF.nameA2] == "Singlet"]
+A2a_filt
+
+save(A2a_filt, file = file.path(DATA_DIR, "A2a_filt.Rda"))
+```
+
+
+```{r}
+# Sample B2
+
+# Add percent.mt based on Nv mitochondrial markers
+B2 <- PercentageFeatureSet(
+  B2,
+  features = mt_genes,
+  col.name = "percent.mt"
+)
+
+# QC visualization
+VlnPlot(B2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1B2 <- FeatureScatter(B2, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2B2 <- FeatureScatter(B2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1B2 + plot2B2
+
+# Filter low-quality cells and high MT / extreme counts
+B2 <- subset(
+  B2,
+  subset = nFeature_RNA > 250 & nFeature_RNA < 10000 &
+           percent.mt   < 10 &
+           nCount_RNA   > 500 & nCount_RNA   < 50000
+)
+
+vplot1B2 <- VlnPlot(B2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+vplot1B2
+
+# SCTransform normalization
+B2 <- SCTransform(
+  B2,
+  vst.flavor      = "v2",
+  method          = "glmGamPoi",
+  vars.to.regress = "percent.mt",
+  verbose         = FALSE
+)
+
+# Dimensionality reduction and clustering
+
+B2 <- RunPCA(B2, verbose = FALSE)
+B2 <- RunUMAP(B2, dims = 1:30, verbose = FALSE)
+B2 <- FindNeighbors(B2, dims = 1:30, verbose = FALSE)
+B2 <- FindClusters(B2, verbose = FALSE)
+
+umap_plotB2 <- DimPlot(B2, reduction = "umap", label = TRUE, pt.size = 0.05, label.size = 8)
+umap_plotB2
+```
+
+```{r}
+## ---- B2 pK diagnostic ---------------------------------------------
+
+## pK Identification (no ground truth)
+sweep.res.list_B2 <- paramSweep(B2, PCs = 1:10, sct = TRUE)
+sweep.stats_B2    <- summarizeSweep(sweep.res.list_B2, GT = FALSE)
+bcmvn_B2          <- find.pK(sweep.stats_B2)
+bcmvn_B2
+
+# Get optimal pK
+bcmvn.max_B2  <- bcmvn_B2[which.max(bcmvn_B2$BCmetric), ]
+optimal.pk    <- bcmvn.max_B2$pK
+optimal.pk_B2 <- as.numeric(as.character(optimal.pk))
+
+# this also finds optimal pk.
+pK_B2        <- as.numeric(as.character(bcmvn_B2$pK))
+BCmetricB2  <- bcmvn_B2$BCmetric
+pK_chooseB2 <- pK_B2[which(BCmetricB2 %in% max(BCmetricB2))]
+
+par(mar = c(5,4,4,8)+1, cex.main=1.2, font.main=2)
+{
+  plot(x = pK_B2, y = BCmetricB2, pch = 16, type = "b", col = "blue", lty = 1)
+  abline(v = optimal.pk_B2, lwd = 2, col = "red", lty = 2)
+  title("The BCmvn distributions (B2)")
+  text(pK_chooseB2, max(BCmetricB2), as.character(pK_chooseB2), pos = 4, col = "red")
+}
+#0.01. = optimal.pk_B2
+```
+
+
+```{r}
+## ---- B2_doubletfinder----------------
+
+annotations_B2    <- B2@meta.data$seurat_clusters
+homotypic.prop_B2 <- modelHomotypic(annotations_B2)
+nExp_poi_B2       <- round(0.075 * nrow(B2@meta.data))
+nExp_poi.adj_B2   <- round(nExp_poi_B2 * (1 - homotypic.prop_B2))
+nExp_poi.adj_B2
+
+nExpB2 <- round(ncol(B2) * 0.075)  # 7.5% expected doublets
+
+B2a <- doubletFinder_v3(       
+  B2,  
+  pN   = 0.25,
+  pK   = optimal.pk_B2,  # from the BCmvn sweep
+  nExp = nExpB2,
+  PCs  = 1:10,
+  sct  = TRUE
+)
+
+DF.nameB2 <- colnames(B2a@meta.data)[grepl("DF.classifications", colnames(B2a@meta.data))]
+Idents(B2a) <- DF.nameB2
+DimPlot(B2a)
+
+B2a_filt <- B2a[, B2a@meta.data[, DF.nameB2] == "Singlet"]
+B2a_filt
+
+save(B2a_filt, file = file.path(DATA_DIR, "B2a_filt.Rda"))
+```
+
+#combine 48hpf (early planula) filtered datasets A2a and B2a
+```{r}
+Stella_A2B2_raw<-merge(A2a_filt, y=B2a_filt, add.cell.ids =c("A2", "B2"), project = "StellaA2B2_comb")
+Stella_A2B2_raw
+
+Stella_A2B2_raw <- SCTransform(Stella_A2B2_raw, vst.flavor="v2", method = "glmGamPoi", vars.to.regress = c("orig.ident", "percent.mt"), verbose = FALSE)
+Stella_A2B2_raw
+
+save(Stella_A2B2_raw,
+     file = file.path(DATA_DIR, "Stella_A2B2_raw.Rda"))
+```
+
+```{r}
+all.genes <- rownames(Stella_A2B2_raw)
+Stella_A2B2_raw <- RunPCA(Stella_A2B2_raw, features = VariableFeatures(object = Stella_A2B2_raw))
+
+print(Stella_A2B2_raw[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(Stella_A2B2_raw, dims = 1:2, reduction = "pca")
+DimPlot(Stella_A2B2_raw, reduction = "pca")
+DimHeatmap(v, dims = 1:20, cells = 500, balanced = TRUE)
+
+ElbowPlot(Stella_A2B2_raw)
+plot(ElbowPlot(object = Stella_A2B2_raw, ndims = 50))
+```
+
+```{r}
+#used 20 dimensions
+
+Stella_early_pl <- FindNeighbors(Stella_A2B2_raw, dims = 1:20)
+Stella_early_pl <- FindClusters(Stella_early_pl, resolution = 1)
+#head(Idents(Stella_early_pl), 10)
+Stella_early_pl <- RunUMAP(Stella_early_pl, dims = 1:20, verbose = FALSE)
+
+DimPlot(Stella_early_pl, reduction = "umap")
+
+p1.20dim_v2<-DimPlot(Stella_early_pl, reduction = "umap",group.by = "orig.ident" )
+p2.20dim_v2<-DimPlot(Stella_early_pl, reduction = "umap", label = TRUE, pt.size = 0.005, label.size = 8)
+p1.20dim_v2
+p2.20dim_v2
+
+save(Stella_early_pl,
+     file = file.path(DATA_DIR, "Stella_early_pl.Rda"))
+```
+
+```{r}
+#LabelClusters function to label individual clusters
+plot <- DimPlot(object = Stella_early_pl)
+LabelClusters(plot = plot, id = 'ident')
+```
+
+# early planula- annotation 
+```{r}
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_early_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes gastrula annotation')
+     plt
+     
+```
+

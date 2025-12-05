@@ -1,0 +1,340 @@
+---
+title: "initial processing late planula"
+output: html_document
+---
+---
+title: "initial processing of early planula datasets"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Force notebook chunks to use the project root as working directory
+knitr::opts_knit$set(
+  root.dir = "/Users/stellG1/Documents/scRNAseq/Jamie/ashA_combined"
+)
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(janitor)
+library(sctransform)
+library(DoubletFinder)
+
+set.seed(6)
+
+#Embryo_96 = late planula dataset
+
+DATA_DIR    <- "Embryo_96hpf/data"
+RESULTS_DIR <- "Embryo_96hpf/results"
+
+dir.create(DATA_DIR,    showWarnings = FALSE, recursive = TRUE)
+dir.create(RESULTS_DIR, showWarnings = FALSE, recursive = TRUE)
+
+mt_genes <- c(
+  "NV2g000053000.1", "NV2g025931000.1", "NV2g006232000.1", "NV2g024053000.1",
+  "NV2g007852000.1", "NV2g000772000.1", "NV2g001453000.1", "NV2g002690000.1",
+  "NV2g002540000.1", "NV2g002424000.1"
+)
+
+```
+
+```{r}
+# Sample G1 = early planula G1
+
+G1.data <- Read10X(
+data.dir = file.path(DATA_DIR, "filtered_feature_bc_matrix")
+)
+G1 <- CreateSeuratObject(counts = G1.data, project = "StellaG1")
+
+# Sample H1 = early planula H1
+
+H1.data <- Read10X(
+data.dir = file.path(DATA_DIR, "filtered_feature_bc_matrix_H1")
+)
+H1 <- CreateSeuratObject(counts = H1.data, project = "StellaH1")
+
+```
+
+```{r}
+# Sample G1
+
+# Add percent.mt based on Nv mitochondrial markers
+G1 <- PercentageFeatureSet(
+  G1,
+  features = mt_genes,
+  col.name = "percent.mt"
+)
+
+# QC visualization
+VlnPlot(G1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1G1 <- FeatureScatter(G1, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2G1 <- FeatureScatter(G1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1G1 + plot2G1
+
+# Filter low-quality cells and high MT / extreme counts
+G1 <- subset(
+  G1,
+  subset = nFeature_RNA > 250 & nFeature_RNA < 10000 &
+           percent.mt   < 10 &
+           nCount_RNA   > 500 & nCount_RNA   < 50000
+)
+
+vplot1G1 <- VlnPlot(G1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+vplot1G1
+
+# SCTransform normalization
+G1 <- SCTransform(
+  G1,
+  vst.flavor      = "v2",
+  method          = "glmGamPoi",
+  vars.to.regress = "percent.mt",
+  verbose         = FALSE
+)
+
+# Dimensionality reduction and clustering
+
+G1 <- RunPCA(G1, verbose = FALSE)
+G1 <- RunUMAP(G1, dims = 1:30, verbose = FALSE)
+G1 <- FindNeighbors(G1, dims = 1:30, verbose = FALSE)
+G1 <- FindClusters(G1, verbose = FALSE)
+
+umap_plotG1 <- DimPlot(G1, reduction = "umap", label = TRUE, pt.size = 0.05, label.size = 8)
+umap_plotG1
+```
+
+```{r}
+## ---- G1 pK diagnostic ---------------------------------------------
+
+## pK Identification (no ground truth)
+sweep.res.list_G1 <- paramSweep(G1, PCs = 1:10, sct = TRUE)
+sweep.stats_G1    <- summarizeSweep(sweep.res.list_G1, GT = FALSE)
+bcmvn_G1          <- find.pK(sweep.stats_G1)
+bcmvn_G1
+
+# Get optimal pK
+bcmvn.max_G1  <- bcmvn_G1[which.max(bcmvn_G1$BCmetric), ]
+optimal.pk    <- bcmvn.max_G1$pK
+optimal.pk_G1 <- as.numeric(as.character(optimal.pk))
+
+# this also finds optimal pk.
+pK_G1        <- as.numeric(as.character(bcmvn_G1$pK))
+BCmetricG1  <- bcmvn_G1$BCmetric
+pK_chooseG1 <- pK_G1[which(BCmetricG1 %in% max(BCmetricG1))]
+
+par(mar = c(5,4,4,8)+1, cex.main=1.2, font.main=2)
+{
+  plot(x = pK_G1, y = BCmetricG1, pch = 16, type = "b", col = "blue", lty = 1)
+  abline(v = optimal.pk_G1, lwd = 2, col = "red", lty = 2)
+  title("The BCmvn distributions (G1)")
+  text(pK_chooseG1, max(BCmetricG1), as.character(pK_chooseG1), pos = 4, col = "red")
+}
+ #0.02 = optimal.pk_G1
+```
+
+
+```{r}
+## ---- G1_doubletfinder----------------
+
+annotations_G1    <- G1@meta.data$seurat_clusters
+homotypic.prop_G1 <- modelHomotypic(annotations_G1)
+nExp_poi_G1       <- round(0.075 * nrow(G1@meta.data))
+nExp_poi.adj_G1   <- round(nExp_poi_G1 * (1 - homotypic.prop_G1))
+nExp_poi.adj_G1
+
+nExpG1 <- round(ncol(G1) * 0.075)  # 7.5% expected doublets
+
+G1a <- doubletFinder_v3(       
+  G1,  
+  pN   = 0.25,
+  pK   = optimal.pk_G1,  # from the BCmvn sweep
+  nExp = nExpG1,
+  PCs  = 1:10,
+  sct  = TRUE
+)
+
+DF.nameG1 <- colnames(G1a@meta.data)[grepl("DF.classifications", colnames(G1a@meta.data))]
+Idents(G1a) <- DF.nameG1
+DimPlot(G1a)
+
+G1a_filt <- G1a[, G1a@meta.data[, DF.nameG1] == "Singlet"]
+G1a_filt
+
+save(G1a_filt, file = file.path(DATA_DIR, "G1a_filt.Rda"))
+```
+
+
+```{r}
+# Sample H1
+
+# Add percent.mt based on Nv mitochondrial markers
+H1 <- PercentageFeatureSet(
+  H1,
+  features = mt_genes,
+  col.name = "percent.mt"
+)
+
+# QC visualization
+VlnPlot(H1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1H1 <- FeatureScatter(H1, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2H1 <- FeatureScatter(H1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1H1 + plot2H1
+
+# Filter low-quality cells and high MT / extreme counts
+H1 <- subset(
+  H1,
+  subset = nFeature_RNA > 250 & nFeature_RNA < 10000 &
+           percent.mt   < 10 &
+           nCount_RNA   > 500 & nCount_RNA   < 50000
+)
+
+vplot1H1 <- VlnPlot(H1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+vplot1H1
+
+# SCTransform normalization
+H1 <- SCTransform(
+  H1,
+  vst.flavor      = "v2",
+  method          = "glmGamPoi",
+  vars.to.regress = "percent.mt",
+  verbose         = FALSE
+)
+
+# Dimensionality reduction and clustering
+
+H1 <- RunPCA(H1, verbose = FALSE)
+H1 <- RunUMAP(H1, dims = 1:30, verbose = FALSE)
+H1 <- FindNeighbors(H1, dims = 1:30, verbose = FALSE)
+H1 <- FindClusters(H1, verbose = FALSE)
+
+umap_plotH1 <- DimPlot(H1, reduction = "umap", label = TRUE, pt.size = 0.05, label.size = 8)
+umap_plotH1
+```
+
+```{r}
+## ---- H1 pK diagnostic ---------------------------------------------
+
+## pK Identification (no ground truth)
+sweep.res.list_H1 <- paramSweep(H1, PCs = 1:10, sct = TRUE)
+sweep.stats_H1    <- summarizeSweep(sweep.res.list_H1, GT = FALSE)
+bcmvn_H1          <- find.pK(sweep.stats_H1)
+bcmvn_H1
+
+# Get optimal pK
+bcmvn.max_H1  <- bcmvn_H1[which.max(bcmvn_H1$BCmetric), ]
+optimal.pk    <- bcmvn.max_H1$pK
+optimal.pk_H1 <- as.numeric(as.character(optimal.pk))
+
+# this also finds optimal pk.
+pK_H1        <- as.numeric(as.character(bcmvn_H1$pK))
+BCmetricH1  <- bcmvn_H1$BCmetric
+pK_chooseH1 <- pK_H1[which(BCmetricH1 %in% max(BCmetricH1))]
+
+par(mar = c(5,4,4,8)+1, cex.main=1.2, font.main=2)
+{
+  plot(x = pK_H1, y = BCmetricH1, pch = 16, type = "b", col = "blue", lty = 1)
+  abline(v = optimal.pk_H1, lwd = 2, col = "red", lty = 2)
+  title("The BCmvn distributions (H1)")
+  text(pK_chooseH1, max(BCmetricH1), as.character(pK_chooseH1), pos = 4, col = "red")
+}
+#0.28. = optimal.pk_H1
+```
+
+
+```{r}
+## ---- H1_doubletfinder----------------
+
+annotations_H1    <- H1@meta.data$seurat_clusters
+homotypic.prop_H1 <- modelHomotypic(annotations_H1)
+nExp_poi_H1       <- round(0.075 * nrow(H1@meta.data))
+nExp_poi.adj_H1   <- round(nExp_poi_H1 * (1 - homotypic.prop_H1))
+nExp_poi.adj_H1
+
+nExpH1 <- round(ncol(H1) * 0.075)  # 7.5% expected doublets
+
+H1a <- doubletFinder_v3(       
+  H1,  
+  pN   = 0.25,
+  pK   = optimal.pk_H1,  # from the BCmvn sweep
+  nExp = nExpH1,
+  PCs  = 1:10,
+  sct  = TRUE
+)
+
+DF.nameH1 <- colnames(H1a@meta.data)[grepl("DF.classifications", colnames(H1a@meta.data))]
+Idents(H1a) <- DF.nameH1
+DimPlot(H1a)
+
+H1a_filt <- H1a[, H1a@meta.data[, DF.nameH1] == "Singlet"]
+H1a_filt
+
+save(H1a_filt, file = file.path(DATA_DIR, "H1a_filt.Rda"))
+```
+
+#combine 96hpf (late planula) filtered datasets G1a and H1a
+```{r}
+Stella_G1H1_raw<-merge(G1a_filt, y=H1a_filt, add.cell.ids =c("G1", "H1"), project = "StellaG1H1_comb")
+Stella_G1H1_raw
+
+Stella_G1H1_raw <- SCTransform(Stella_G1H1_raw, vst.flavor="v2", method = "glmGamPoi", vars.to.regress = c("orig.ident", "percent.mt"), verbose = FALSE)
+Stella_G1H1_raw
+
+save(Stella_G1H1_raw,
+     file = file.path(DATA_DIR, "Stella_G1H1_raw.Rda"))
+```
+
+```{r}
+all.genes <- rownames(Stella_G1H1_raw)
+Stella_G1H1_raw <- RunPCA(Stella_G1H1_raw, features = VariableFeatures(object = Stella_G1H1_raw))
+
+print(Stella_G1H1_raw[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(Stella_G1H1_raw, dims = 1:2, reduction = "pca")
+DimPlot(Stella_G1H1_raw, reduction = "pca")
+DimHeatmap(v, dims = 1:20, cells = 500, balanced = TRUE)
+
+ElbowPlot(Stella_G1H1_raw)
+plot(ElbowPlot(object = Stella_G1H1_raw, ndims = 50))
+```
+
+```{r}
+#used 20 dimensions
+
+Stella_late_pl <- FindNeighbors(Stella_G1H1_raw, dims = 1:20)
+Stella_late_pl <- FindClusters(Stella_late_pl, resolution = 1)
+#head(Idents(Stella_late_pl), 10)
+Stella_late_pl <- RunUMAP(Stella_late_pl, dims = 1:20, verbose = FALSE)
+
+DimPlot(Stella_late_pl, reduction = "umap")
+
+p1.20dim_v2<-DimPlot(Stella_late_pl, reduction = "umap",group.by = "orig.ident" )
+p2.20dim_v2<-DimPlot(Stella_late_pl, reduction = "umap", label = TRUE, pt.size = 0.005, label.size = 8)
+p1.20dim_v2
+p2.20dim_v2
+
+save(Stella_late_pl,
+     file = file.path(DATA_DIR, "Stella_late_pl.Rda"))
+```
+
+```{r}
+#LabelClusters function to label individual clusters
+plot <- DimPlot(object = Stella_late_pl)
+LabelClusters(plot = plot, id = 'ident')
+```
+
+#late planula- annotation 
+```{r}
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_late_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes late planula annotation')
+     plt
+     
+```

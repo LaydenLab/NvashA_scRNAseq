@@ -1,0 +1,203 @@
+---
+title: "initial processing of mid planula dataset (72hpf)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Force notebook chunks to use the project root as working directory
+knitr::opts_knit$set(
+  root.dir = "/Users/stellC2/Documents/scRNAseq/Jamie/ashA_combined"
+)
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(janitor)
+library(sctransform)
+library(DoubletFinder)
+
+set.seed(6)
+
+#Embryo_72 = mid planula dataset
+
+DATA_DIR    <- "Embryo_72hpf/data"
+RESULTS_DIR <- "Embryo_72hpf/results"
+
+dir.create(DATA_DIR,    showWarnings = FALSE, recursive = TRUE)
+dir.create(RESULTS_DIR, showWarnings = FALSE, recursive = TRUE)
+
+mt_genes <- c(
+  "NV2g000053000.1", "NV2g025931000.1", "NV2g006232000.1", "NV2g024053000.1",
+  "NV2g007852000.1", "NV2g000772000.1", "NV2g001453000.1", "NV2g002690000.1",
+  "NV2g002540000.1", "NV2g002424000.1"
+)
+
+```
+
+```{r}
+# Sample C2 = mid planula C2
+
+C2.data <- Read10X(
+data.dir = file.path(DATA_DIR, "filtered_feature_bc_matrix_c2")
+)
+C2 <- CreateSeuratObject(counts = C2.data, project = "StellaC2")
+```
+
+```{r}
+# Sample C2
+
+# Add percent.mt based on Nv mitochondrial markers
+C2 <- PercentageFeatureSet(
+  C2,
+  features = mt_genes,
+  col.name = "percent.mt"
+)
+
+# QC visualization
+VlnPlot(C2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1C2 <- FeatureScatter(C2, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2C2 <- FeatureScatter(C2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1C2 + plot2C2
+
+# Filter low-quality cells and high MT / extreme counts
+C2 <- subset(
+  C2,
+  subset = nFeature_RNA > 250 & nFeature_RNA < 10000 &
+           percent.mt   < 10 &
+           nCount_RNA   > 500 & nCount_RNA   < 50000
+)
+
+vplot1C2 <- VlnPlot(C2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+vplot1C2
+
+# SCTransform normalization
+C2 <- SCTransform(
+  C2,
+  vst.flavor      = "v2",
+  method          = "glmGamPoi",
+  vars.to.regress = "percent.mt",
+  verbose         = FALSE
+)
+
+# Dimensionality reduction and clustering
+
+C2 <- RunPCA(C2, verbose = FALSE)
+C2 <- RunUMAP(C2, dims = 1:30, verbose = FALSE)
+C2 <- FindNeighbors(C2, dims = 1:30, verbose = FALSE)
+C2 <- FindClusters(C2, verbose = FALSE)
+
+umap_plotC2 <- DimPlot(C2, reduction = "umap", label = TRUE, pt.size = 0.05, label.size = 8)
+umap_plotC2
+```
+
+```{r}
+## ---- C2 pK diagnostic ---------------------------------------------
+
+## pK Identification (no ground truth)
+sweep.res.list_C2 <- paramSweep(C2, PCs = 1:10, sct = TRUE)
+sweep.stats_C2    <- summarizeSweep(sweep.res.list_C2, GT = FALSE)
+bcmvn_C2          <- find.pK(sweep.stats_C2)
+bcmvn_C2
+
+# Get optimal pK
+bcmvn.max_C2  <- bcmvn_C2[which.max(bcmvn_C2$BCmetric), ]
+optimal.pk    <- bcmvn.max_C2$pK
+optimal.pk_C2 <- as.numeric(as.character(optimal.pk))
+
+# this also finds optimal pk.
+pK_C2        <- as.numeric(as.character(bcmvn_C2$pK))
+BCmetricC2  <- bcmvn_C2$BCmetric
+pK_chooseC2 <- pK_C2[which(BCmetricC2 %in% max(BCmetricC2))]
+
+par(mar = c(5,4,4,8)+1, cex.main=1.2, font.main=2)
+{
+  plot(x = pK_C2, y = BCmetricC2, pch = 16, type = "b", col = "blue", lty = 1)
+  abline(v = optimal.pk_C2, lwd = 2, col = "red", lty = 2)
+  title("The BCmvn distributions (C2)")
+  text(pK_chooseC2, max(BCmetricC2), as.character(pK_chooseC2), pos = 4, col = "red")
+}
+ #0.15 = optimal.pk_C2
+```
+
+
+```{r}
+## ---- C2_doubletfinder----------------
+
+annotations_C2    <- C2@meta.data$seurat_clusters
+homotypic.prop_C2 <- modelHomotypic(annotations_C2)
+nExp_poi_C2       <- round(0.075 * nrow(C2@meta.data))
+nExp_poi.adj_C2   <- round(nExp_poi_C2 * (1 - homotypic.prop_C2))
+nExp_poi.adj_C2
+
+nExpC2 <- round(ncol(C2) * 0.075)  # 7.5% expected doublets
+
+C2a <- doubletFinder_v3(       
+  C2,  
+  pN   = 0.25,
+  pK   = optimal.pk_C2,  # from the BCmvn sweep
+  nExp = nExpC2,
+  PCs  = 1:10,
+  sct  = TRUE
+)
+
+DF.nameC2 <- colnames(C2a@meta.data)[grepl("DF.classifications", colnames(C2a@meta.data))]
+Idents(C2a) <- DF.nameC2
+DimPlot(C2a)
+
+C2a_filt <- C2a[, C2a@meta.data[, DF.nameC2] == "Singlet"]
+C2a_filt
+
+save(C2a_filt, file = file.path(DATA_DIR, "C2a_filt.Rda"))
+```
+
+```{r}
+all.genes <- rownames(C2a_filt)
+C2a_filt <- RunPCA(C2a_filt, features = VariableFeatures(object = C2a_filt))
+
+print(C2a_filt[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(C2a_filt, dims = 1:2, reduction = "pca")
+DimPlot(C2a_filt, reduction = "pca")
+DimHeatmap(v, dims = 1:20, cells = 500, balanced = TRUE)
+
+ElbowPlot(C2a_filt)
+plot(ElbowPlot(object = C2a_filt, ndims = 50))
+```
+
+```{r}
+#used 20 dimensions
+
+Stella_mid_pl <- FindNeighbors(C2a_filt, dims = 1:20)
+Stella_mid_pl <- FindClusters(Stella_mid_pl, resolution = 1)
+#head(Idents(Stella_mid_pl), 10)
+Stella_mid_pl <- RunUMAP(Stella_mid_pl, dims = 1:20, verbose = FALSE)
+
+DimPlot(Stella_mid_pl, reduction = "umap")
+
+p1.20dim_v2<-DimPlot(Stella_mid_pl, reduction = "umap",group.by = "orig.ident" )
+p2.20dim_v2<-DimPlot(Stella_mid_pl, reduction = "umap", label = TRUE, pt.size = 0.005, label.size = 8)
+p1.20dim_v2
+p2.20dim_v2
+
+save(Stella_mid_pl,
+     file = file.path(DATA_DIR, "Stella_mid_pl.Rda"))
+```
+
+# mid planula- annotation 
+```{r}
+
+list_of_genes <- c("NV2g012902000.1", "NV2g018581000.1", "NV2g019749000.1", "NV2g010686000.1", "NV2g016402000.1", "NV2g004477000.1", "NV2g006608000.1", "NV2g009665000.1", "NV2g000252000.1", "NV2g011441000.1", "NV2g000472000.1", "NV2g003168000.1", "NV2g012726000.1")
+
+     plt <- DotPlot(Stella_mid_pl, features = list_of_genes) + RotatedAxis() + theme(axis.text.x = element_text(angle = 90)) + FontSize(10)
+     plt <- plt + scale_x_discrete(labels = expression(italic("Nvmucin"), italic("Nvnot-likeE"), italic("Nvcnido-fos1"), italic("Nvncol3"), italic("NvsoxC"), italic("NvsoxB(2)"), italic("Nvath-like"), italic("NvashA"), italic("Nvelav1"), italic("NvfoxA"), italic("NvsnailA"), italic("Nvwnt2"), italic("Nvsix3/6")))
+     plt <- plt + ggtitle('Marker genes mid planula annotation')
+     plt
+     
+```
+
